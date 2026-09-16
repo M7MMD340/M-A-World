@@ -1,13 +1,17 @@
+import 'dart:ui' as ui;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 /// Hand-painted backdrop for the whole walkable house: a vertical strip of
-/// five rooms (bedroom, living room, kitchen, garden, pool), each drawn with
-/// distinct props so a room reads at a glance. Pure vector drawing, no
-/// external art assets.
+/// five rooms (bedroom, living room, kitchen, garden, pool). The living
+/// room uses a real painted illustration ([livingRoomImage]); the rest
+/// still fall back to pure vector drawing until they get their own art.
 class HouseBackground extends PositionComponent {
-  HouseBackground({required Vector2 worldSize})
+  HouseBackground({required Vector2 worldSize, this.livingRoomImage})
       : super(size: worldSize, position: Vector2.zero(), anchor: Anchor.topLeft);
+
+  final ui.Image? livingRoomImage;
 
   static const double roomH = 350;
 
@@ -18,7 +22,18 @@ class HouseBackground extends PositionComponent {
     _paintIndoorRoom(canvas, w, 0 * roomH, roomH, 'غرفة النوم', hasWindow: false);
     _drawBed(canvas, w, 0 * roomH);
 
-    _paintIndoorRoom(canvas, w, 1 * roomH, roomH, 'غرفة المعيشة', hasWindow: true);
+    final livingImage = livingRoomImage;
+    if (livingImage != null) {
+      final destRect = Rect.fromLTWH(0, 1 * roomH, w, roomH);
+      paintImage(
+        canvas: canvas,
+        rect: destRect,
+        image: livingImage,
+        fit: BoxFit.fill,
+      );
+    } else {
+      _paintIndoorRoom(canvas, w, 1 * roomH, roomH, 'غرفة المعيشة', hasWindow: true);
+    }
 
     _paintIndoorRoom(canvas, w, 2 * roomH, roomH, 'المطبخ', hasWindow: false);
     _drawKitchenCounter(canvas, w, 2 * roomH);

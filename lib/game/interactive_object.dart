@@ -15,6 +15,7 @@ class InteractiveObject extends PositionComponent with TapCallbacks {
     required this.color,
     required this.onTap,
     required super.position,
+    this.showIcon = true,
   }) : super(size: Vector2.all(64), anchor: Anchor.center);
 
   final ObjectKind kind;
@@ -22,47 +23,76 @@ class InteractiveObject extends PositionComponent with TapCallbacks {
   final Color color;
   final VoidCallback onTap;
 
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
-
-    add(TextComponent(
-      text: caption,
-      anchor: Anchor.topCenter,
-      position: Vector2(size.x / 2, size.y + 6),
-      textRenderer: TextPaint(
-        style: const TextStyle(
-          color: Color(0xFF3A2E29),
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ));
-  }
+  /// When the room already has a painted equivalent of this object (e.g. a
+  /// camera drawn into the room illustration itself), set this to false so
+  /// only an invisible tap zone + the speech-bubble label remain — the
+  /// interaction stays embedded in the art instead of floating an icon on
+  /// top of it.
+  final bool showIcon;
 
   @override
   void render(Canvas canvas) {
     final w = size.x;
     final h = size.y;
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(2, 6, w, h), const Radius.circular(18)),
-      Paint()..color = Colors.black.withValues(alpha: 0.10),
-    );
-    final cardPaint = Paint()..color = color.withValues(alpha: 0.85);
-    final cardRect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18));
-    canvas.drawRRect(cardRect, cardPaint);
+    if (showIcon) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(2, 6, w, h), const Radius.circular(18)),
+        Paint()..color = Colors.black.withValues(alpha: 0.10),
+      );
+      final cardPaint = Paint()..color = color.withValues(alpha: 0.85);
+      final cardRect = RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(18));
+      canvas.drawRRect(cardRect, cardPaint);
 
-    switch (kind) {
-      case ObjectKind.mailbox:
-        _drawMailbox(canvas, w, h);
-      case ObjectKind.memories:
-        _drawMemories(canvas, w, h);
-      case ObjectKind.camera:
-        _drawCamera(canvas, w, h);
+      switch (kind) {
+        case ObjectKind.mailbox:
+          _drawMailbox(canvas, w, h);
+        case ObjectKind.memories:
+          _drawMemories(canvas, w, h);
+        case ObjectKind.camera:
+          _drawCamera(canvas, w, h);
+      }
     }
 
+    _drawCaptionBubble(canvas, w, h);
+
     super.render(canvas);
+  }
+
+  void _drawCaptionBubble(Canvas canvas, double w, double h) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: caption,
+        style: const TextStyle(
+          color: Color(0xFF3A2E29),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.rtl,
+    )..layout();
+
+    final bubbleWidth = tp.width + 20;
+    final bubbleHeight = tp.height + 12;
+    final bubbleTop = h + 10;
+    final bubbleRect = Rect.fromLTWH(w / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, bubbleHeight);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bubbleRect.shift(const Offset(0, 2)), const Radius.circular(12)),
+      Paint()..color = Colors.black.withValues(alpha: 0.08),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bubbleRect, const Radius.circular(12)),
+      Paint()..color = const Color(0xFFFFF7E8),
+    );
+    final tail = Path()
+      ..moveTo(w / 2 - 6, bubbleRect.top)
+      ..lineTo(w / 2, bubbleRect.top - 7)
+      ..lineTo(w / 2 + 6, bubbleRect.top)
+      ..close();
+    canvas.drawPath(tail, Paint()..color = const Color(0xFFFFF7E8));
+
+    tp.paint(canvas, Offset(bubbleRect.left + 10, bubbleRect.top + 6));
   }
 
   void _drawMailbox(Canvas canvas, double w, double h) {

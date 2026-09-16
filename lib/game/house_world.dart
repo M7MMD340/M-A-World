@@ -1,5 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:flame/experimental.dart';
+import 'package:flame/flame.dart';
 import 'package:flutter/material.dart';
 
 import 'avatar_component.dart';
@@ -41,30 +42,37 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    add(HouseBackground(worldSize: size));
+    final livingRoomImage = await Flame.images.load('rooms/living_room.png');
+    add(HouseBackground(worldSize: size, livingRoomImage: livingRoomImage));
 
     add(InteractiveObject(
       kind: ObjectKind.mailbox,
       caption: 'رسائلنا',
       color: const Color(0xFFFF3D77),
-      position: Vector2(roomWidth * 0.18, roomHeight * 1.7),
+      position: Vector2(roomWidth * 0.15, roomHeight * 1.85),
       onTap: onOpenChat,
     ));
 
+    // These two align with the camera and photo frames already painted
+    // into the living room illustration, so the icon card is hidden and
+    // only the tap zone + label bubble remain — the interaction stays
+    // embedded in the art instead of floating on top of it.
     add(InteractiveObject(
       kind: ObjectKind.memories,
       caption: 'ذكرياتنا',
       color: const Color(0xFF7B61FF),
-      position: Vector2(roomWidth * 0.82, roomHeight * 1.28),
+      position: Vector2(roomWidth * 0.32, roomHeight * 1.28),
       onTap: onOpenMemories,
+      showIcon: false,
     ));
 
     add(InteractiveObject(
       kind: ObjectKind.camera,
       caption: 'الكاميرا',
       color: const Color(0xFFFFD166),
-      position: Vector2(roomWidth * 0.5, roomHeight * 1.24),
+      position: Vector2(roomWidth * 0.49, roomHeight * 1.33),
       onTap: onOpenCamera,
+      showIcon: false,
     ));
 
     add(avatar);
