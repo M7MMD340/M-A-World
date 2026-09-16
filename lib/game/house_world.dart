@@ -38,7 +38,12 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
     await super.onLoad();
 
     final livingRoomImage = await Flame.images.load('rooms/living_room.png');
-    add(HouseBackground(worldSize: size, livingRoomImage: livingRoomImage));
+    final gardenPoolImage = await Flame.images.load('rooms/garden_pool.jpg');
+    add(HouseBackground(
+      worldSize: size,
+      livingRoomImage: livingRoomImage,
+      gardenPoolImage: gardenPoolImage,
+    ));
 
     add(InteractiveObject(
       kind: ObjectKind.mailbox,
