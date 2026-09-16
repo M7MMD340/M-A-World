@@ -1,9 +1,9 @@
-import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'avatar_component.dart';
 import 'interactive_object.dart';
+import 'room_background.dart';
 
 class HomeWorld extends FlameGame {
   HomeWorld({
@@ -27,17 +27,7 @@ class HomeWorld extends FlameGame {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    add(RectangleComponent(
-      size: size,
-      paint: Paint()..color = const Color(0xFFF7EEDD),
-    ));
-
-    add(RectangleComponent(
-      position: Vector2(size.x / 2, size.y * 0.72),
-      size: Vector2(size.x * 0.7, size.y * 0.4),
-      anchor: Anchor.center,
-      paint: Paint()..color = const Color(0xFFE9CBA3),
-    ));
+    add(RoomBackground(gameSize: size));
 
     add(InteractiveObject(
       emoji: '📮',
