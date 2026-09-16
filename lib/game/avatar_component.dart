@@ -1,13 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
+import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 /// A cozy hand-drawn style chibi character: rounded body, round head,
 /// simple hair/face, drawn entirely with vector paths (no external art
-/// assets, no cost). Draggable around the room, with a gentle idle bob
-/// for a bit of life.
+/// assets, no cost). Draggable around the room, with a gentle idle bob,
+/// a lift-off-the-ground feel while dragging, a directional lean while
+/// moving, and a squash-and-settle bounce on landing.
 class AvatarComponent extends PositionComponent
     with DragCallbacks, HasGameReference {
   AvatarComponent({
@@ -20,6 +22,9 @@ class AvatarComponent extends PositionComponent
   final Color color;
 
   double _bobTime = 0;
+  double _lift = 0;
+  double _lean = 0;
+  double _leanTargetSign = 0;
   late final Color _hairColor;
   late final Color _skinColor;
 
@@ -52,27 +57,33 @@ class AvatarComponent extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _bobTime += dt;
+    final liftTarget = isDragged ? 1.0 : 0.0;
+    _lift += (liftTarget - _lift) * math.min(1, dt * 8);
+    final leanTarget = isDragged ? _leanTargetSign * 0.14 : 0.0;
+    _lean += (leanTarget - _lean) * math.min(1, dt * 10);
+    angle = _lean;
   }
 
   @override
   void render(Canvas canvas) {
-    final bob = isDragged ? 0.0 : math.sin(_bobTime * 2.4) * 2.5;
-    canvas.save();
-    canvas.translate(0, bob);
-
     final w = size.x;
     final h = size.y;
     final cx = w / 2;
 
-    // Soft ground shadow.
+    // Ground shadow stays put; shrinks and fades slightly while lifted.
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(cx, h - 8),
-        width: w * 0.62,
-        height: 12,
+        width: w * 0.62 * (1 - 0.12 * _lift),
+        height: 12 * (1 - 0.12 * _lift),
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.14),
+      Paint()..color = Colors.black.withValues(alpha: 0.14 * (1 - 0.45 * _lift)),
     );
+
+    final bob = isDragged ? 0.0 : math.sin(_bobTime * 2.4) * 2.5;
+    final liftOffset = -6.0 * _lift;
+    canvas.save();
+    canvas.translate(0, bob + liftOffset);
 
     // Feet.
     final shoePaint = Paint()..color = const Color(0xFF6B4A3A);
@@ -175,6 +186,9 @@ class AvatarComponent extends PositionComponent
   @override
   void onDragUpdate(DragUpdateEvent event) {
     super.onDragUpdate(event);
+    if (event.localDelta.x.abs() > 0.3) {
+      _leanTargetSign = event.localDelta.x.sign;
+    }
     final target = position + event.localDelta;
     final half = size / 2;
     final maxX = game.size.x - half.x;
@@ -182,6 +196,18 @@ class AvatarComponent extends PositionComponent
     position = Vector2(
       target.x.clamp(half.x, maxX <= half.x ? half.x : maxX),
       target.y.clamp(half.y, maxY <= half.y ? half.y : maxY),
+    );
+  }
+
+  @override
+  void onDragEnd(DragEndEvent event) {
+    super.onDragEnd(event);
+    scale = Vector2(1.18, 0.84);
+    add(
+      ScaleEffect.to(
+        Vector2.all(1.0),
+        EffectController(duration: 0.35, curve: Curves.elasticOut),
+      ),
     );
   }
 }

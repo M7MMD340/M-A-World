@@ -30,26 +30,26 @@ class HomeWorld extends FlameGame {
     add(RoomBackground(gameSize: size));
 
     add(InteractiveObject(
-      emoji: '📮',
+      kind: ObjectKind.mailbox,
       caption: 'رسائلنا',
       color: const Color(0xFFFF3D77),
-      position: Vector2(size.x * 0.22, size.y * 0.28),
+      position: Vector2(size.x * 0.16, size.y * 0.36),
       onTap: onOpenChat,
     ));
 
     add(InteractiveObject(
-      emoji: '🖼️',
+      kind: ObjectKind.memories,
       caption: 'ذكرياتنا',
       color: const Color(0xFF7B61FF),
-      position: Vector2(size.x * 0.78, size.y * 0.28),
+      position: Vector2(size.x * 0.84, size.y * 0.36),
       onTap: onOpenMemories,
     ));
 
     add(InteractiveObject(
-      emoji: '📷',
+      kind: ObjectKind.camera,
       caption: 'الكاميرا',
       color: const Color(0xFFFFD166),
-      position: Vector2(size.x * 0.5, size.y * 0.18),
+      position: Vector2(size.x * 0.5, size.y * 0.40),
       onTap: onOpenCamera,
     ));
 
