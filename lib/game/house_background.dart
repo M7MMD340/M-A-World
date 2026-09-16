@@ -3,60 +3,37 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-/// Hand-painted backdrop for the whole walkable house: the living room
-/// (real painted illustration) directly connected to the garden and pool
-/// outside. The living room falls back to pure vector drawing if its
+/// The whole house — living room, stairs, garden, and pool — as a single
+/// continuous painted illustration, so it reads as one real place instead
+/// of stitched-together scenes. Falls back to a plain placeholder if the
 /// image hasn't loaded yet.
 class HouseBackground extends PositionComponent {
-  HouseBackground({
-    required Vector2 worldSize,
-    this.livingRoomImage,
-    this.gardenPoolImage,
-  }) : super(size: worldSize, position: Vector2.zero(), anchor: Anchor.topLeft);
+  HouseBackground({required Vector2 worldSize, this.houseImage})
+      : super(size: worldSize, position: Vector2.zero(), anchor: Anchor.topLeft);
 
-  final ui.Image? livingRoomImage;
-  final ui.Image? gardenPoolImage;
-
-  static const double roomH = 350;
-  static const double gardenOverlap = 70;
+  final ui.Image? houseImage;
 
   @override
   void render(Canvas canvas) {
     final w = size.x;
+    final h = size.y;
 
-    final livingImage = livingRoomImage;
-    if (livingImage != null) {
-      final destRect = Rect.fromLTWH(0, 0 * roomH, w, roomH);
+    final image = houseImage;
+    if (image != null) {
       paintImage(
         canvas: canvas,
-        rect: destRect,
-        image: livingImage,
+        rect: Rect.fromLTWH(0, 0, w, h),
+        image: image,
         fit: BoxFit.fill,
       );
     } else {
-      _paintIndoorRoom(canvas, w, 0 * roomH, roomH, 'غرفة المعيشة', hasWindow: true);
-    }
-
-    final gardenImage = gardenPoolImage;
-    if (gardenImage != null) {
-      // Shifted up by [gardenOverlap] so the two illustrations' diamond
-      // shapes interlock at the seam instead of touching only at a thin
-      // point — reads as one continuous house instead of two cards
-      // stacked with a gap. Height stays true to the image's own aspect
-      // ratio (no stretch); the world is sized to match in house_world.
-      final destRect = Rect.fromLTWH(0, roomH - gardenOverlap, w, size.y - roomH + gardenOverlap);
-      paintImage(
-        canvas: canvas,
-        rect: destRect,
-        image: gardenImage,
-        fit: BoxFit.fill,
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()..color = const Color(0xFFF7EEDD),
       );
-    } else {
-      _paintGarden(canvas, w, 1 * roomH);
-      _paintPool(canvas, w, 2 * roomH);
     }
 
-    _paintDayNightOverlay(canvas, w, size.y);
+    _paintDayNightOverlay(canvas, w, h);
   }
 
   /// A soft color wash over the whole house that shifts with the real
@@ -97,216 +74,5 @@ class HouseBackground extends PositionComponent {
       Rect.fromLTWH(0, 0, w, h),
       Paint()..color = tint.withValues(alpha: alpha),
     );
-  }
-
-  void _label(Canvas canvas, double w, double top, String text, Color color) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: 15,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.rtl,
-    )..layout();
-    tp.paint(canvas, Offset(w / 2 - tp.width / 2, top + 14));
-  }
-
-  void _paintIndoorRoom(
-    Canvas canvas,
-    double w,
-    double top,
-    double h,
-    String label, {
-    required bool hasWindow,
-  }) {
-    final floorTop = top + h * 0.5;
-
-    final wallRect = Rect.fromLTWH(0, top, w, floorTop - top);
-    canvas.drawRect(
-      wallRect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: const [Color(0xFFFBF1E4), Color(0xFFF3E2CE)],
-        ).createShader(wallRect),
-    );
-
-    if (hasWindow) {
-      final windowRect = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset(w * 0.5, top + h * 0.16), width: w * 0.32, height: h * 0.20),
-        const Radius.circular(18),
-      );
-      canvas.drawRRect(windowRect, Paint()..color = const Color(0xFFFFF7E8));
-      canvas.drawRRect(
-        windowRect,
-        Paint()
-          ..color = const Color(0xFFE7C7A3)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 6,
-      );
-      canvas.save();
-      canvas.clipRRect(windowRect);
-      canvas.drawCircle(
-        Offset(w * 0.5, top + h * 0.10),
-        w * 0.22,
-        Paint()
-          ..color = const Color(0xFFFFE9A8).withValues(alpha: 0.85)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
-      );
-      canvas.restore();
-      canvas.drawLine(
-        Offset(w * 0.5, windowRect.top),
-        Offset(w * 0.5, windowRect.bottom),
-        Paint()
-          ..color = const Color(0xFFE7C7A3)
-          ..strokeWidth = 4,
-      );
-      _drawPlant(canvas, Offset(w * 0.92, floorTop - 6));
-      _drawPlant(canvas, Offset(w * 0.08, floorTop - 6));
-    }
-
-    final floorRect = Rect.fromLTWH(0, floorTop, w, top + h - floorTop);
-    canvas.drawRect(
-      floorRect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFE3B583), Color(0xFFD9A56E)],
-        ).createShader(floorRect),
-    );
-    final plankPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.05)
-      ..strokeWidth = 2;
-    for (double y = floorTop + 24; y < top + h; y += 26) {
-      canvas.drawLine(Offset(0, y), Offset(w, y), plankPaint);
-    }
-
-    if (hasWindow) {
-      final rugRect = Rect.fromCenter(
-        center: Offset(w / 2, top + h * 0.76),
-        width: w * 0.62,
-        height: h * 0.34,
-      );
-      final rugRRect = RRect.fromRectAndRadius(rugRect, const Radius.circular(28));
-      canvas.drawRRect(rugRRect, Paint()..color = const Color(0xFFE98BA0).withValues(alpha: 0.9));
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rugRect.deflate(14), const Radius.circular(20)),
-        Paint()
-          ..color = const Color(0xFFFBF1E4).withValues(alpha: 0.9)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4,
-      );
-    }
-
-    canvas.drawLine(
-      Offset(0, top + h),
-      Offset(w, top + h),
-      Paint()
-        ..color = const Color(0xFF6B4A3A).withValues(alpha: 0.3)
-        ..strokeWidth = 3,
-    );
-
-    _label(canvas, w, top, label, const Color(0xFF6B4A3A));
-  }
-
-  void _paintGarden(Canvas canvas, double w, double top) {
-    final rect = Rect.fromLTWH(0, top, w, roomH);
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFCDE8B0), Color(0xFFB9DB98)],
-        ).createShader(rect),
-    );
-    for (final dx in [0.12, 0.32, 0.68, 0.88]) {
-      _drawFlowerBed(canvas, Offset(w * dx, top + 90));
-    }
-    _drawPlant(canvas, Offset(w * 0.5, top + 260));
-    canvas.drawLine(
-      Offset(0, top + roomH),
-      Offset(w, top + roomH),
-      Paint()
-        ..color = const Color(0xFF5F9563).withValues(alpha: 0.4)
-        ..strokeWidth = 3,
-    );
-    _label(canvas, w, top, 'الحديقة', const Color(0xFF3E6B41));
-  }
-
-  void _drawFlowerBed(Canvas canvas, Offset center) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: center, width: 70, height: 34), const Radius.circular(12)),
-      Paint()..color = const Color(0xFF8B5E3C),
-    );
-    final colors = [const Color(0xFFFF9E9E), const Color(0xFFFFE9A8), const Color(0xFFCDE8D0)];
-    for (int i = 0; i < 3; i++) {
-      canvas.drawCircle(center + Offset(-18.0 + i * 18, -4), 8, Paint()..color = colors[i]);
-    }
-  }
-
-  void _paintPool(Canvas canvas, double w, double top) {
-    final rect = Rect.fromLTWH(0, top, w, roomH);
-    canvas.drawRect(rect, Paint()..color = const Color(0xFFEFDFC0));
-
-    final poolRect = Rect.fromCenter(center: Offset(w / 2, top + roomH * 0.55), width: w * 0.72, height: roomH * 0.6);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(poolRect.inflate(10), const Radius.circular(24)),
-      Paint()..color = const Color(0xFFFFF7E8),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(poolRect, const Radius.circular(18)),
-      Paint()..color = const Color(0xFF6EC6D9),
-    );
-    final shimmer = Paint()..color = Colors.white.withValues(alpha: 0.35);
-    for (int i = 0; i < 4; i++) {
-      canvas.drawLine(
-        Offset(poolRect.left + 20, poolRect.top + 24 + i * 26),
-        Offset(poolRect.left + 60, poolRect.top + 24 + i * 26),
-        shimmer..strokeWidth = 4,
-      );
-    }
-    canvas.drawLine(
-      Offset(0, top + roomH),
-      Offset(w, top + roomH),
-      Paint()
-        ..color = const Color(0xFFC9A876).withValues(alpha: 0.5)
-        ..strokeWidth = 3,
-    );
-    _label(canvas, w, top, 'المسبح', const Color(0xFF2C6E7A));
-  }
-
-  void _drawPlant(Canvas canvas, Offset base) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: base, width: 30, height: 22),
-        const Radius.circular(8),
-      ),
-      Paint()..color = const Color(0xFFC97B5F),
-    );
-    final leafPaint = Paint()..color = const Color(0xFF7FAE7A);
-    for (final angle in [-0.6, -0.15, 0.3, 0.7]) {
-      final tip = base + Offset.fromDirection(-1.571 + angle, 34);
-      final path = Path()
-        ..moveTo(base.dx, base.dy - 10)
-        ..quadraticBezierTo(
-          base.dx + (tip.dx - base.dx) * 0.6,
-          base.dy - 10 + (tip.dy - base.dy) * 0.4,
-          tip.dx,
-          tip.dy,
-        )
-        ..quadraticBezierTo(
-          base.dx + (tip.dx - base.dx) * 0.4,
-          base.dy - 10 + (tip.dy - base.dy) * 0.6,
-          base.dx,
-          base.dy - 10,
-        );
-      canvas.drawPath(path, leafPaint);
-    }
   }
 }
