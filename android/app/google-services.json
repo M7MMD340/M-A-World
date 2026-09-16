@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "279849595327",
+    "project_id": "m-a-11-11",
+    "storage_bucket": "m-a-11-11.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:279849595327:android:1106a7d66c69dbb20b710a",
+        "android_client_info": {
+          "package_name": "com.masha1111.coupleworld"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkgL67MjgjvfUlyn1OpN38zvWAd8S294Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
