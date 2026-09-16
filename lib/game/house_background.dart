@@ -18,6 +18,7 @@ class HouseBackground extends PositionComponent {
   final ui.Image? gardenPoolImage;
 
   static const double roomH = 350;
+  static const double gardenOverlap = 70;
 
   @override
   void render(Canvas canvas) {
@@ -38,7 +39,12 @@ class HouseBackground extends PositionComponent {
 
     final gardenImage = gardenPoolImage;
     if (gardenImage != null) {
-      final destRect = Rect.fromLTWH(0, roomH, w, size.y - roomH);
+      // Shifted up by [gardenOverlap] so the two illustrations' diamond
+      // shapes interlock at the seam instead of touching only at a thin
+      // point — reads as one continuous house instead of two cards
+      // stacked with a gap. Height stays true to the image's own aspect
+      // ratio (no stretch); the world is sized to match in house_world.
+      final destRect = Rect.fromLTWH(0, roomH - gardenOverlap, w, size.y - roomH + gardenOverlap);
       paintImage(
         canvas: canvas,
         rect: destRect,
