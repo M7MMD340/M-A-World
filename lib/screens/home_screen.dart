@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../game/home_world.dart';
 import '../models/user_profile.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.profile});
@@ -93,10 +94,10 @@ class HomeScreen extends StatelessWidget {
                   'الفعاليات 🎉',
                   'ألعاب وتحديات مشتركة قادمة هنا.',
                 ),
-                onSettings: () => _openStub(
-                  context,
-                  'الإعدادات ⚙️',
-                  'إعدادات الحساب والتطبيق قادمة هنا.',
+                onSettings: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(profile: profile),
+                  ),
                 ),
               ),
             ),

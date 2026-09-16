@@ -8,6 +8,8 @@ class UserProfile {
     this.coupleId,
     this.outfitColor,
     this.gender,
+    this.age,
+    this.marriageDate,
   });
 
   final String uid;
@@ -20,6 +22,9 @@ class UserProfile {
   /// created before this existed.
   final String? gender;
 
+  final int? age;
+  final DateTime? marriageDate;
+
   String get characterAsset => gender == 'girl' ? 'girl' : 'boy';
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -31,6 +36,8 @@ class UserProfile {
       coupleId: data['coupleId'] as String?,
       outfitColor: data['outfitColor'] as String?,
       gender: data['gender'] as String?,
+      age: data['age'] as int?,
+      marriageDate: (data['marriageDate'] as Timestamp?)?.toDate(),
     );
   }
 }
