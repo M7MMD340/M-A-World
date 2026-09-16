@@ -1,43 +1,48 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
-import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 /// A cozy hand-drawn style chibi character: rounded body, round head,
 /// simple hair/face, drawn entirely with vector paths (no external art
-/// assets, no cost). Draggable around the room, with a gentle idle bob,
-/// a lift-off-the-ground feel while dragging, a directional lean while
-/// moving, and a squash-and-settle bounce on landing.
-class AvatarComponent extends PositionComponent
-    with DragCallbacks, HasGameReference {
+/// assets, no cost). Walks around the house driven by [inputDir] (fed each
+/// frame from a joystick), with an idle breathing bob, a walking bounce,
+/// and a lean into the direction of travel.
+class AvatarComponent extends PositionComponent {
   AvatarComponent({
     required this.label,
     required this.color,
+    required this.worldSize,
     required super.position,
+    this.speed = 220,
   }) : super(size: Vector2(78, 104), anchor: Anchor.center);
 
   final String label;
   final Color color;
+  final Vector2 worldSize;
+  final double speed;
+
+  /// Set every frame by the owning game from the joystick's relativeDelta.
+  /// Magnitude 0..1, direction is the desired travel direction.
+  Vector2 inputDir = Vector2.zero();
 
   double _bobTime = 0;
-  double _lift = 0;
   double _lean = 0;
-  double _leanTargetSign = 0;
-  late final Color _hairColor;
-  late final Color _skinColor;
+  bool get isMoving => inputDir.length2 > 0.01;
+
+  Color get _hairColor {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withLightness((hsl.lightness - 0.30).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation - 0.10).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  Color get _skinColor => const Color(0xFFFAD3B0);
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-
-    final hsl = HSLColor.fromColor(color);
-    _hairColor = hsl
-        .withLightness((hsl.lightness - 0.30).clamp(0.0, 1.0))
-        .withSaturation((hsl.saturation - 0.10).clamp(0.0, 1.0))
-        .toColor();
-    _skinColor = const Color(0xFFFAD3B0);
 
     add(TextComponent(
       text: label,
@@ -57,9 +62,17 @@ class AvatarComponent extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _bobTime += dt;
-    final liftTarget = isDragged ? 1.0 : 0.0;
-    _lift += (liftTarget - _lift) * math.min(1, dt * 8);
-    final leanTarget = isDragged ? _leanTargetSign * 0.14 : 0.0;
+
+    if (isMoving) {
+      final half = size / 2;
+      final target = position + inputDir * speed * dt;
+      position = Vector2(
+        target.x.clamp(half.x, worldSize.x - half.x),
+        target.y.clamp(half.y, worldSize.y - half.y),
+      );
+    }
+
+    final leanTarget = isMoving ? inputDir.x.clamp(-1.0, 1.0) * 0.14 : 0.0;
     _lean += (leanTarget - _lean) * math.min(1, dt * 10);
     angle = _lean;
   }
@@ -70,20 +83,22 @@ class AvatarComponent extends PositionComponent
     final h = size.y;
     final cx = w / 2;
 
-    // Ground shadow stays put; shrinks and fades slightly while lifted.
+    // Bouncy footstep rhythm while walking; gentle breathing while idle.
+    final bob = isMoving
+        ? -math.sin(_bobTime * 9.0).abs() * 3.5
+        : math.sin(_bobTime * 2.4) * 2.5;
+
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(cx, h - 8),
-        width: w * 0.62 * (1 - 0.12 * _lift),
-        height: 12 * (1 - 0.12 * _lift),
+        width: w * 0.62 * (1 - (isMoving ? 0.08 : 0)),
+        height: 12,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.14 * (1 - 0.45 * _lift)),
+      Paint()..color = Colors.black.withValues(alpha: 0.14),
     );
 
-    final bob = isDragged ? 0.0 : math.sin(_bobTime * 2.4) * 2.5;
-    final liftOffset = -6.0 * _lift;
     canvas.save();
-    canvas.translate(0, bob + liftOffset);
+    canvas.translate(0, bob);
 
     // Feet.
     final shoePaint = Paint()..color = const Color(0xFF6B4A3A);
@@ -181,33 +196,5 @@ class AvatarComponent extends PositionComponent
 
     canvas.restore();
     super.render(canvas);
-  }
-
-  @override
-  void onDragUpdate(DragUpdateEvent event) {
-    super.onDragUpdate(event);
-    if (event.localDelta.x.abs() > 0.3) {
-      _leanTargetSign = event.localDelta.x.sign;
-    }
-    final target = position + event.localDelta;
-    final half = size / 2;
-    final maxX = game.size.x - half.x;
-    final maxY = game.size.y - half.y;
-    position = Vector2(
-      target.x.clamp(half.x, maxX <= half.x ? half.x : maxX),
-      target.y.clamp(half.y, maxY <= half.y ? half.y : maxY),
-    );
-  }
-
-  @override
-  void onDragEnd(DragEndEvent event) {
-    super.onDragEnd(event);
-    scale = Vector2(1.18, 0.84);
-    add(
-      ScaleEffect.to(
-        Vector2.all(1.0),
-        EffectController(duration: 0.35, curve: Curves.elasticOut),
-      ),
-    );
   }
 }

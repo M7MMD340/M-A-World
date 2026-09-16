@@ -1,24 +1,42 @@
+import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-import 'avatar_component.dart';
-import 'interactive_object.dart';
-import 'room_background.dart';
+import 'house_world.dart';
 
-class HomeWorld extends FlameGame {
+/// The playable game: a house the couple's avatar can walk around freely
+/// using an on-screen joystick. [joystick] is built in the constructor (not
+/// onLoad) so it's always available synchronously for [HouseWorld] to read
+/// every frame, with no async lifecycle race between the two.
+class HomeWorld extends FlameGame<HouseWorld> {
   HomeWorld({
-    required this.avatarLabel,
-    required this.avatarColor,
-    required this.onOpenChat,
-    required this.onOpenMemories,
-    required this.onOpenCamera,
-  });
+    required String avatarLabel,
+    required Color avatarColor,
+    required VoidCallback onOpenChat,
+    required VoidCallback onOpenMemories,
+    required VoidCallback onOpenCamera,
+  })  : joystick = JoystickComponent(
+          knob: CircleComponent(
+            radius: 22,
+            paint: Paint()..color = Colors.white.withValues(alpha: 0.95),
+          ),
+          background: CircleComponent(
+            radius: 44,
+            paint: Paint()..color = Colors.black.withValues(alpha: 0.22),
+          ),
+          margin: const EdgeInsets.only(left: 28, bottom: 28),
+        ),
+        super(
+          world: HouseWorld(
+            avatarLabel: avatarLabel,
+            avatarColor: avatarColor,
+            onOpenChat: onOpenChat,
+            onOpenMemories: onOpenMemories,
+            onOpenCamera: onOpenCamera,
+          ),
+        );
 
-  final String avatarLabel;
-  final Color avatarColor;
-  final VoidCallback onOpenChat;
-  final VoidCallback onOpenMemories;
-  final VoidCallback onOpenCamera;
+  final JoystickComponent joystick;
 
   @override
   Color backgroundColor() => const Color(0xFFF7EEDD);
@@ -26,37 +44,6 @@ class HomeWorld extends FlameGame {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-
-    add(RoomBackground(gameSize: size));
-
-    add(InteractiveObject(
-      kind: ObjectKind.mailbox,
-      caption: 'رسائلنا',
-      color: const Color(0xFFFF3D77),
-      position: Vector2(size.x * 0.16, size.y * 0.36),
-      onTap: onOpenChat,
-    ));
-
-    add(InteractiveObject(
-      kind: ObjectKind.memories,
-      caption: 'ذكرياتنا',
-      color: const Color(0xFF7B61FF),
-      position: Vector2(size.x * 0.84, size.y * 0.36),
-      onTap: onOpenMemories,
-    ));
-
-    add(InteractiveObject(
-      kind: ObjectKind.camera,
-      caption: 'الكاميرا',
-      color: const Color(0xFFFFD166),
-      position: Vector2(size.x * 0.5, size.y * 0.40),
-      onTap: onOpenCamera,
-    ));
-
-    add(AvatarComponent(
-      label: avatarLabel,
-      color: avatarColor,
-      position: Vector2(size.x / 2, size.y * 0.62),
-    ));
+    camera.viewport.add(joystick);
   }
 }
