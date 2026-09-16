@@ -38,7 +38,7 @@ class HouseBackground extends PositionComponent {
 
     final gardenImage = gardenPoolImage;
     if (gardenImage != null) {
-      final destRect = Rect.fromLTWH(0, 1 * roomH, w, 2 * roomH);
+      final destRect = Rect.fromLTWH(0, roomH, w, size.y - roomH);
       paintImage(
         canvas: canvas,
         rect: destRect,

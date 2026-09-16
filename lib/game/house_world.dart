@@ -28,8 +28,11 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
 
   static const double roomWidth = 700;
   static const double roomHeight = 350;
-  static const int roomCount = 3;
-  static final Vector2 size = Vector2(roomWidth, roomHeight * roomCount);
+  // The garden+pool illustration is taller than it is wide relative to the
+  // living room's, so it gets its own band height (derived from its actual
+  // pixel aspect ratio) instead of reusing roomHeight, to avoid stretching.
+  static const double gardenPoolHeight = 887;
+  static final Vector2 size = Vector2(roomWidth, roomHeight + gardenPoolHeight);
 
   late final AvatarComponent avatar;
 
