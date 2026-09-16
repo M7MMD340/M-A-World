@@ -16,12 +16,14 @@ import 'interactive_object.dart';
 class HouseWorld extends World with HasGameReference<HomeWorld> {
   HouseWorld({
     required this.avatarLabel,
+    required this.characterAsset,
     required this.onOpenChat,
     required this.onOpenMemories,
     required this.onOpenCamera,
   });
 
   final String avatarLabel;
+  final String characterAsset;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMemories;
   final VoidCallback onOpenCamera;
@@ -71,9 +73,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       showIcon: false,
     ));
 
-    // TODO: let each person pick boy/girl once the wardrobe/character
-    // picker exists; everyone gets the boy sprite for now.
-    final avatarSprite = await Flame.images.load('characters/boy.png');
+    final avatarSprite = await Flame.images.load('characters/$characterAsset.png');
     avatar = AvatarComponent(
       label: avatarLabel,
       sprite: avatarSprite,

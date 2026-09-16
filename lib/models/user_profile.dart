@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
 class UserProfile {
   UserProfile({
@@ -8,6 +7,7 @@ class UserProfile {
     required this.email,
     this.coupleId,
     this.outfitColor,
+    this.gender,
   });
 
   final String uid;
@@ -16,11 +16,11 @@ class UserProfile {
   final String? coupleId;
   final String? outfitColor;
 
-  Color get avatarColor {
-    if (outfitColor == null) return const Color(0xFFFF3D77);
-    final hex = outfitColor!.replaceFirst('#', '');
-    return Color(int.parse('FF$hex', radix: 16));
-  }
+  /// 'boy' or 'girl' — picked at signup. Falls back to 'boy' for accounts
+  /// created before this existed.
+  final String? gender;
+
+  String get characterAsset => gender == 'girl' ? 'girl' : 'boy';
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
@@ -30,6 +30,7 @@ class UserProfile {
       email: (data['email'] as String?) ?? '',
       coupleId: data['coupleId'] as String?,
       outfitColor: data['outfitColor'] as String?,
+      gender: data['gender'] as String?,
     );
   }
 }

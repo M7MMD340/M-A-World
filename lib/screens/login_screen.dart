@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _loading = false;
   bool _isSignup = false;
+  String _gender = 'girl';
 
   Future<void> _submit() async {
     setState(() {
@@ -45,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'email': _email.text.trim(),
           'coupleId': null,
           'outfitColor': '#FF3D77',
+          'gender': _gender,
           'createdAt': FieldValue.serverTimestamp(),
         });
       } else {
@@ -121,6 +123,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  _GenderPicker(
+                    value: _gender,
+                    onChanged: (v) => setState(() => _gender = v),
+                  ),
+                  const SizedBox(height: 16),
                 ],
                 TextField(
                   controller: _email,
@@ -165,6 +172,57 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GenderPicker extends StatelessWidget {
+  const _GenderPicker({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _card('boy', 'ولد')),
+        const SizedBox(width: 12),
+        Expanded(child: _card('girl', 'بنت')),
+      ],
+    );
+  }
+
+  Widget _card(String key, String label) {
+    final active = value == key;
+    return GestureDetector(
+      onTap: () => onChanged(key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF211A29),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: active ? const Color(0xFFFF3D77) : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Image.asset('assets/images/characters/$key.png', height: 72),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? Colors.white : const Color(0xFF9C8FAE),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -11,6 +11,7 @@ import 'house_world.dart';
 class HomeWorld extends FlameGame<HouseWorld> {
   HomeWorld({
     required String avatarLabel,
+    required String characterAsset,
     required VoidCallback onOpenChat,
     required VoidCallback onOpenMemories,
     required VoidCallback onOpenCamera,
@@ -28,6 +29,7 @@ class HomeWorld extends FlameGame<HouseWorld> {
         super(
           world: HouseWorld(
             avatarLabel: avatarLabel,
+            characterAsset: characterAsset,
             onOpenChat: onOpenChat,
             onOpenMemories: onOpenMemories,
             onOpenCamera: onOpenCamera,
