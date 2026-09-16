@@ -8,11 +8,11 @@ import 'home_world.dart';
 import 'house_background.dart';
 import 'interactive_object.dart';
 
-/// The whole walkable house: a single vertical strip of rooms (bedroom,
-/// living room, kitchen, garden, pool) the couple's avatar can roam
-/// between freely. [avatar] is built inside onLoad (after its sprite image
-/// is loaded); this world's own update() only ever runs after that onLoad
-/// fully completes, so reading [avatar] there is never a race.
+/// The whole walkable house: the living room, with the garden and pool
+/// right outside, the couple's avatar can roam between freely. [avatar] is
+/// built inside onLoad (after its sprite image is loaded); this world's own
+/// update() only ever runs after that onLoad fully completes, so reading
+/// [avatar] there is never a race.
 class HouseWorld extends World with HasGameReference<HomeWorld> {
   HouseWorld({
     required this.avatarLabel,
@@ -28,7 +28,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
 
   static const double roomWidth = 700;
   static const double roomHeight = 350;
-  static const int roomCount = 5;
+  static const int roomCount = 3;
   static final Vector2 size = Vector2(roomWidth, roomHeight * roomCount);
 
   late final AvatarComponent avatar;
@@ -44,7 +44,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       kind: ObjectKind.mailbox,
       caption: 'رسائلنا',
       color: const Color(0xFFFF3D77),
-      position: Vector2(roomWidth * 0.15, roomHeight * 1.85),
+      position: Vector2(roomWidth * 0.15, roomHeight * 0.85),
       onTap: onOpenChat,
     ));
 
@@ -56,7 +56,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       kind: ObjectKind.memories,
       caption: 'ذكرياتنا',
       color: const Color(0xFF7B61FF),
-      position: Vector2(roomWidth * 0.32, roomHeight * 1.28),
+      position: Vector2(roomWidth * 0.32, roomHeight * 0.28),
       onTap: onOpenMemories,
       showIcon: false,
     ));
@@ -65,7 +65,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       kind: ObjectKind.camera,
       caption: 'الكاميرا',
       color: const Color(0xFFFFD166),
-      position: Vector2(roomWidth * 0.49, roomHeight * 1.33),
+      position: Vector2(roomWidth * 0.49, roomHeight * 0.33),
       onTap: onOpenCamera,
       showIcon: false,
     ));
@@ -77,7 +77,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       label: avatarLabel,
       sprite: avatarSprite,
       worldSize: size,
-      position: Vector2(roomWidth / 2, roomHeight * 1.85),
+      position: Vector2(roomWidth / 2, roomHeight * 0.85),
     );
     add(avatar);
 

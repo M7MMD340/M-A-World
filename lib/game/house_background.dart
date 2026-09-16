@@ -3,10 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-/// Hand-painted backdrop for the whole walkable house: a vertical strip of
-/// five rooms (bedroom, living room, kitchen, garden, pool). The living
-/// room uses a real painted illustration ([livingRoomImage]); the rest
-/// still fall back to pure vector drawing until they get their own art.
+/// Hand-painted backdrop for the whole walkable house: the living room
+/// (real painted illustration) directly connected to the garden and pool
+/// outside. The living room falls back to pure vector drawing if its
+/// image hasn't loaded yet.
 class HouseBackground extends PositionComponent {
   HouseBackground({required Vector2 worldSize, this.livingRoomImage})
       : super(size: worldSize, position: Vector2.zero(), anchor: Anchor.topLeft);
@@ -19,12 +19,9 @@ class HouseBackground extends PositionComponent {
   void render(Canvas canvas) {
     final w = size.x;
 
-    _paintIndoorRoom(canvas, w, 0 * roomH, roomH, 'غرفة النوم', hasWindow: false);
-    _drawBed(canvas, w, 0 * roomH);
-
     final livingImage = livingRoomImage;
     if (livingImage != null) {
-      final destRect = Rect.fromLTWH(0, 1 * roomH, w, roomH);
+      final destRect = Rect.fromLTWH(0, 0 * roomH, w, roomH);
       paintImage(
         canvas: canvas,
         rect: destRect,
@@ -32,15 +29,12 @@ class HouseBackground extends PositionComponent {
         fit: BoxFit.fill,
       );
     } else {
-      _paintIndoorRoom(canvas, w, 1 * roomH, roomH, 'غرفة المعيشة', hasWindow: true);
+      _paintIndoorRoom(canvas, w, 0 * roomH, roomH, 'غرفة المعيشة', hasWindow: true);
     }
 
-    _paintIndoorRoom(canvas, w, 2 * roomH, roomH, 'المطبخ', hasWindow: false);
-    _drawKitchenCounter(canvas, w, 2 * roomH);
+    _paintGarden(canvas, w, 1 * roomH);
 
-    _paintGarden(canvas, w, 3 * roomH);
-
-    _paintPool(canvas, w, 4 * roomH);
+    _paintPool(canvas, w, 2 * roomH);
   }
 
   void _label(Canvas canvas, double w, double top, String text, Color color) {
@@ -156,47 +150,6 @@ class HouseBackground extends PositionComponent {
     );
 
     _label(canvas, w, top, label, const Color(0xFF6B4A3A));
-  }
-
-  void _drawBed(Canvas canvas, double w, double top) {
-    final bedRect = Rect.fromCenter(center: Offset(w * 0.32, top + 260), width: 220, height: 130);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bedRect, const Radius.circular(18)),
-      Paint()..color = const Color(0xFF9B85FF),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(bedRect.left + 10, bedRect.top + 10, bedRect.width - 20, 40),
-        const Radius.circular(12),
-      ),
-      Paint()..color = const Color(0xFFFFF7E8),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(bedRect.left, bedRect.top - 26, bedRect.width, 30),
-        const Radius.circular(10),
-      ),
-      Paint()..color = const Color(0xFF7B61FF),
-    );
-  }
-
-  void _drawKitchenCounter(Canvas canvas, double w, double top) {
-    final counterRect = Rect.fromLTWH(w * 0.14, top + 190, w * 0.72, 70);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(counterRect, const Radius.circular(14)),
-      Paint()..color = const Color(0xFFCDE8D0),
-    );
-    for (int i = 0; i < 4; i++) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(counterRect.left + 14 + i * (counterRect.width - 28) / 4, counterRect.top + 10, 6, 50),
-          const Radius.circular(3),
-        ),
-        Paint()..color = Colors.white.withValues(alpha: 0.5),
-      );
-    }
-    canvas.drawCircle(Offset(counterRect.left + counterRect.width * 0.75, counterRect.top - 4), 22, Paint()..color = const Color(0xFF3A2E29));
-    canvas.drawCircle(Offset(counterRect.left + counterRect.width * 0.75, counterRect.top - 4), 16, Paint()..color = const Color(0xFF6B4A3A));
   }
 
   void _paintGarden(Canvas canvas, double w, double top) {
