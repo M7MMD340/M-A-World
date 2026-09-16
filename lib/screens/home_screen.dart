@@ -52,7 +52,6 @@ class HomeScreen extends StatelessWidget {
             child: GameWidget(
               game: HomeWorld(
                 avatarLabel: profile.displayName,
-                avatarColor: profile.avatarColor,
                 onOpenChat: () => _openStub(
                   context,
                   'رسائلنا 💌',

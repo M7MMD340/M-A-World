@@ -10,23 +10,18 @@ import 'interactive_object.dart';
 
 /// The whole walkable house: a single vertical strip of rooms (bedroom,
 /// living room, kitchen, garden, pool) the couple's avatar can roam
-/// between freely. [avatar] is built in the constructor (not onLoad) so it
-/// is always available synchronously — no async lifecycle race with the
-/// outer game reading it.
+/// between freely. [avatar] is built inside onLoad (after its sprite image
+/// is loaded); this world's own update() only ever runs after that onLoad
+/// fully completes, so reading [avatar] there is never a race.
 class HouseWorld extends World with HasGameReference<HomeWorld> {
   HouseWorld({
-    required String avatarLabel,
-    required Color avatarColor,
+    required this.avatarLabel,
     required this.onOpenChat,
     required this.onOpenMemories,
     required this.onOpenCamera,
-  }) : avatar = AvatarComponent(
-          label: avatarLabel,
-          color: avatarColor,
-          worldSize: size,
-          position: Vector2(roomWidth / 2, roomHeight * 1.5),
-        );
+  });
 
+  final String avatarLabel;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMemories;
   final VoidCallback onOpenCamera;
@@ -36,7 +31,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
   static const int roomCount = 5;
   static final Vector2 size = Vector2(roomWidth, roomHeight * roomCount);
 
-  final AvatarComponent avatar;
+  late final AvatarComponent avatar;
 
   @override
   Future<void> onLoad() async {
@@ -75,6 +70,15 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       showIcon: false,
     ));
 
+    // TODO: let each person pick boy/girl once the wardrobe/character
+    // picker exists; everyone gets the boy sprite for now.
+    final avatarSprite = await Flame.images.load('characters/boy.png');
+    avatar = AvatarComponent(
+      label: avatarLabel,
+      sprite: avatarSprite,
+      worldSize: size,
+      position: Vector2(roomWidth / 2, roomHeight * 1.85),
+    );
     add(avatar);
 
     game.camera.follow(avatar, maxSpeed: 320, snap: true);
