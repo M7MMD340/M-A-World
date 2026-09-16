@@ -24,7 +24,7 @@ class HomeWorld extends FlameGame<HouseWorld> {
             radius: 44,
             paint: Paint()..color = Colors.black.withValues(alpha: 0.22),
           ),
-          margin: const EdgeInsets.only(left: 28, bottom: 28),
+          margin: const EdgeInsets.only(left: 28, bottom: 112),
         ),
         super(
           world: HouseWorld(
