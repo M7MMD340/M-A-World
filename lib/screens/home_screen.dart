@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../game/home_world.dart';
 import '../models/couple.dart';
 import '../models/user_profile.dart';
+import 'chat_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -11,6 +12,27 @@ class HomeScreen extends StatelessWidget {
 
   final UserProfile profile;
   final Couple? couple;
+
+  void _openChat(BuildContext context) {
+    final partnerId = couple?.partnerId(profile.uid);
+    if (couple == null || !couple!.isComplete || partnerId == null) {
+      _openStub(
+        context,
+        'رسائلنا 💌',
+        'اربط حسابك بشريكك من الإعدادات أول عشان تقدروا تتراسلوا.',
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          coupleId: couple!.id,
+          myUid: profile.uid,
+          partnerId: partnerId,
+        ),
+      ),
+    );
+  }
 
   void _openStub(BuildContext context, String title, String message) {
     showModalBottomSheet(
@@ -59,11 +81,7 @@ class HomeScreen extends StatelessWidget {
                 myUid: profile.uid,
                 coupleId: couple?.id,
                 partnerId: couple?.partnerId(profile.uid),
-                onOpenChat: () => _openStub(
-                  context,
-                  'رسائلنا 💌',
-                  'شاشة المحادثة قادمة هنا قريبًا.',
-                ),
+                onOpenChat: () => _openChat(context),
                 onOpenMemories: () => _openStub(
                   context,
                   'ذكرياتنا 🖼️',
