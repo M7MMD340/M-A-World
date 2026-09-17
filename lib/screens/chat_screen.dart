@@ -7,6 +7,7 @@ import '../models/message.dart';
 import '../models/sticker_catalog.dart';
 import '../services/chat.dart';
 import '../services/presence.dart';
+import '../services/typing.dart';
 
 const _defaultBubbleColor = Color(0xFFFF3D77);
 const _defaultTextColor = Colors.white;
@@ -85,23 +86,55 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _partnerName;
   String _partnerAsset = 'boy';
   bool _partnerOnline = false;
+  bool _partnerTyping = false;
+  DateTime? _partnerLastRead;
   Color _partnerBubbleColor = _partnerBubbleColorFallback;
   Color _myBubbleColor = _defaultBubbleColor;
   Color _myTextColor = _defaultTextColor;
   String _wallpaperKey = _defaultWallpaper;
 
+  bool _iAmTyping = false;
+  Timer? _typingStopTimer;
+
   StreamSubscription<Map<String, dynamic>?>? _presenceSub;
+  StreamSubscription<bool>? _typingSub;
+  StreamSubscription<DateTime?>? _lastReadSub;
 
   @override
   void initState() {
     super.initState();
     markRead(widget.coupleId, widget.myUid);
     _loadPrefs();
+    _controller.addListener(_onTextChanged);
     _presenceSub = watchPresence(widget.coupleId, widget.partnerId).listen((data) {
       final updatedAt = (data?['updatedAt'] as Timestamp?)?.toDate();
       final online = updatedAt != null && DateTime.now().difference(updatedAt) < const Duration(seconds: 8);
       if (mounted) setState(() => _partnerOnline = online);
     });
+    _typingSub = watchTyping(widget.coupleId, widget.partnerId).listen((typing) {
+      if (mounted) setState(() => _partnerTyping = typing);
+    });
+    _lastReadSub = watchLastRead(widget.coupleId, widget.partnerId).listen((lastRead) {
+      if (mounted) setState(() => _partnerLastRead = lastRead);
+    });
+  }
+
+  void _onTextChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+    _typingStopTimer?.cancel();
+    if (hasText) {
+      if (!_iAmTyping) {
+        _iAmTyping = true;
+        setTyping(widget.coupleId, widget.myUid, true);
+      }
+      _typingStopTimer = Timer(const Duration(seconds: 3), () {
+        _iAmTyping = false;
+        setTyping(widget.coupleId, widget.myUid, false);
+      });
+    } else if (_iAmTyping) {
+      _iAmTyping = false;
+      setTyping(widget.coupleId, widget.myUid, false);
+    }
   }
 
   @override
@@ -109,7 +142,12 @@ class _ChatScreenState extends State<ChatScreen> {
     // Anything that arrived while we were actively looking at the chat
     // counts as read too, once we leave.
     markRead(widget.coupleId, widget.myUid);
+    if (_iAmTyping) setTyping(widget.coupleId, widget.myUid, false);
+    _typingStopTimer?.cancel();
     _presenceSub?.cancel();
+    _typingSub?.cancel();
+    _lastReadSub?.cancel();
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -243,8 +281,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    _partnerOnline ? 'متصل الآن' : ' ',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF4ADE80), fontWeight: FontWeight.w600),
+                    _partnerTyping ? 'يكتب الآن...' : (_partnerOnline ? 'متصل الآن' : ' '),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _partnerTyping ? const Color(0xFFFFA94D) : const Color(0xFF4ADE80),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -255,7 +297,6 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             onPressed: _openCustomizeSheet,
             icon: const Icon(Icons.palette_rounded),
-            tooltip: 'تخصيص المحادثة',
           ),
         ],
       ),
@@ -301,6 +342,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         // later item in this list renders ABOVE an earlier
                         // one — the divider must come first in the Column to
                         // land above that day's oldest message, not below it.
+                        final isRead = isMine &&
+                            message.createdAt != null &&
+                            _partnerLastRead != null &&
+                            !_partnerLastRead!.isBefore(message.createdAt!);
                         return Column(
                           key: ValueKey(message.id),
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -309,6 +354,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             _Bubble(
                               message: message,
                               isMine: isMine,
+                              isRead: isRead,
                               bubbleColor: isMine ? _myBubbleColor : _partnerBubbleColor,
                               textColor: isMine ? _myTextColor : Colors.white,
                             ),
@@ -319,6 +365,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                 ),
               ),
+              if (_partnerTyping)
+                const Padding(
+                  padding: EdgeInsets.only(left: 14, bottom: 4),
+                  child: Align(alignment: Alignment.centerLeft, child: _TypingBubble()),
+                ),
               _Composer(
                 controller: _controller,
                 sending: _sending,
@@ -342,12 +393,14 @@ class _Bubble extends StatefulWidget {
   const _Bubble({
     required this.message,
     required this.isMine,
+    required this.isRead,
     required this.bubbleColor,
     required this.textColor,
   });
 
   final Message message;
   final bool isMine;
+  final bool isRead;
   final Color bubbleColor;
   final Color textColor;
 
@@ -393,9 +446,15 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
         crossAxisAlignment: widget.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Text(stickerCatalog[message.stickerKey] ?? '💌', style: const TextStyle(fontSize: 64)),
-          Text(
-            _formatTime(message.createdAt),
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatTime(message.createdAt),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 10),
+              ),
+              _receipt(Colors.white.withValues(alpha: 0.55)),
+            ],
           ),
         ],
       ),
@@ -424,15 +483,33 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
         children: [
           Text(message.text, style: TextStyle(color: widget.textColor, fontSize: 15)),
           const SizedBox(height: 4),
-          Text(
-            _formatTime(message.createdAt),
-            textAlign: isMine ? TextAlign.left : TextAlign.right,
-            style: TextStyle(
-              color: widget.textColor.withValues(alpha: 0.65),
-              fontSize: 10,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Text(
+                _formatTime(message.createdAt),
+                style: TextStyle(
+                  color: widget.textColor.withValues(alpha: 0.65),
+                  fontSize: 10,
+                ),
+              ),
+              _receipt(widget.textColor.withValues(alpha: 0.65)),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _receipt(Color tint) {
+    if (!widget.isMine) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 3),
+      child: Icon(
+        widget.isRead ? Icons.done_all_rounded : Icons.done_rounded,
+        size: 13,
+        color: widget.isRead ? const Color(0xFF4DA6FF) : tint,
       ),
     );
   }
@@ -443,6 +520,70 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
     final minute = dt.minute.toString().padLeft(2, '0');
     final period = dt.hour < 12 ? 'ص' : 'م';
     return '$hour:$minute $period';
+  }
+}
+
+/// Three softly bouncing dots in a small bubble — the classic "typing..."
+/// indicator, shown above the composer while the partner is writing.
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF211A29),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+          bottomRight: Radius.circular(16),
+          bottomLeft: Radius.circular(4),
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) {
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final t = (_controller.value + i * 0.2) % 1.0;
+              final bounce = -4 * (1 - (2 * t - 1).abs());
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Transform.translate(
+                  offset: Offset(0, bounce),
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(color: Color(0xFF9C8FAE), shape: BoxShape.circle),
+                  ),
+                ),
+              );
+            },
+          );
+        }),
+      ),
+    );
   }
 }
 
@@ -518,7 +659,6 @@ class _Composer extends StatelessWidget {
                   IconButton(
                     onPressed: onSticker,
                     icon: const Icon(Icons.emoji_emotions_rounded, color: Color(0xFFFFA94D)),
-                    tooltip: 'ملصقات',
                   ),
                   Expanded(
                     child: TextField(

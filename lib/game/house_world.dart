@@ -14,6 +14,7 @@ import 'remote_avatar_component.dart';
 import '../models/message.dart';
 import '../services/chat.dart';
 import '../services/presence.dart';
+import '../services/typing.dart';
 
 /// The whole walkable house: one continuous illustration (living room,
 /// stairs, garden, pool) both partners can roam across freely. [avatar] is
@@ -53,8 +54,10 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
   StreamSubscription<Map<String, dynamic>?>? _presenceSub;
   StreamSubscription<List<Message>>? _unreadMessagesSub;
   StreamSubscription<DateTime?>? _unreadReadSub;
+  StreamSubscription<bool>? _typingSub;
   DateTime? _latestPartnerMessageAt;
   DateTime? _myLastReadAt;
+  bool _partnerTyping = false;
   double _presenceWriteTimer = 0;
 
   @override
@@ -131,7 +134,9 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
           sprite: partnerSprite,
           position: Vector2(x, y),
           onTap: onOpenChat,
-        )..hasUnread = _hasUnread;
+        )
+          ..hasUnread = _hasUnread
+          ..isTyping = _partnerTyping;
         _partnerAvatar = created;
         add(created);
       } else {
@@ -157,6 +162,11 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
       _myLastReadAt = lastRead;
       _updateUnreadBadge();
     });
+
+    _typingSub = watchTyping(coupleId, partnerId).listen((typing) {
+      _partnerTyping = typing;
+      _partnerAvatar?.isTyping = typing;
+    });
   }
 
   bool get _hasUnread =>
@@ -172,6 +182,7 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
     _presenceSub?.cancel();
     _unreadMessagesSub?.cancel();
     _unreadReadSub?.cancel();
+    _typingSub?.cancel();
     super.onRemove();
   }
 
