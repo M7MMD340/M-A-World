@@ -30,10 +30,10 @@ const _textColorOptions = <Color>[
 ];
 
 const _wallpapers = <String, List<Color>>{
-  'default': [Color(0xFF15111A), Color(0xFF15111A)],
-  'sunset': [Color(0xFF3A1740), Color(0xFF7B1E4A)],
-  'ocean': [Color(0xFF0B2340), Color(0xFF13505B)],
-  'forest': [Color(0xFF1B2E1F), Color(0xFF14351B)],
+  'default': [Color(0xFF241A33), Color(0xFF120D19)],
+  'sunset': [Color(0xFF4A1F52), Color(0xFF7B1E4A)],
+  'ocean': [Color(0xFF0B2340), Color(0xFF12586A)],
+  'forest': [Color(0xFF203A26), Color(0xFF13291A)],
 };
 
 const _wallpaperLabels = <String, String>{
@@ -42,6 +42,47 @@ const _wallpaperLabels = <String, String>{
   'ocean': 'محيط',
   'forest': 'غابة',
 };
+
+/// A faint scattered-hearts texture drawn over the wallpaper gradient —
+/// cheap (no image asset) but reads as far less flat/plain than a solid
+/// color block.
+class _HeartPatternPainter extends CustomPainter {
+  const _HeartPatternPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.035);
+    const step = 64.0;
+    var row = 0;
+    for (double y = -step; y < size.height + step; y += step) {
+      final offsetX = (row.isEven ? 0.0 : step / 2);
+      for (double x = -step; x < size.width + step; x += step) {
+        _drawHeart(canvas, Offset(x + offsetX, y), 7, paint);
+      }
+      row++;
+    }
+  }
+
+  void _drawHeart(Canvas canvas, Offset center, double size, Paint paint) {
+    final path = Path()
+      ..moveTo(center.dx, center.dy + size * 0.6)
+      ..cubicTo(
+        center.dx - size * 1.3, center.dy - size * 0.4,
+        center.dx - size * 0.4, center.dy - size * 1.2,
+        center.dx, center.dy - size * 0.3,
+      )
+      ..cubicTo(
+        center.dx + size * 0.4, center.dy - size * 1.2,
+        center.dx + size * 1.3, center.dy - size * 0.4,
+        center.dx, center.dy + size * 0.6,
+      )
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 /// A gentle slide-up + fade instead of the default side slide — feels like
 /// the chat opens out of the character you just tapped.
@@ -231,10 +272,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final wallpaperColors = _wallpapers[_wallpaperKey] ?? _wallpapers[_defaultWallpaper]!;
     return Scaffold(
-      backgroundColor: const Color(0xFF15111A),
+      backgroundColor: wallpaperColors.first,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF15111A),
+        backgroundColor: wallpaperColors.first,
         foregroundColor: Colors.white,
+        elevation: 0,
         titleSpacing: 0,
         title: Row(
           children: [
@@ -309,7 +351,19 @@ class _ChatScreenState extends State<ChatScreen> {
               colors: wallpaperColors,
             ),
           ),
-          child: Column(
+          child: Stack(
+            children: [
+              Positioned.fill(child: CustomPaint(painter: const _HeartPatternPainter())),
+              _buildChatColumn(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatColumn() {
+    return Column(
             children: [
               Expanded(
                 child: StreamBuilder<List<Message>>(
@@ -376,10 +430,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onSend: _send,
                 onSticker: _openStickerPicker,
               ),
-            ],
-          ),
-        ),
-      ),
+      ],
     );
   }
 
@@ -467,15 +518,22 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: widget.bubbleColor,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(widget.bubbleColor, Colors.white, 0.12)!,
+            Color.lerp(widget.bubbleColor, Colors.black, 0.10)!,
+          ],
+        ),
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isMine ? 16 : 4),
-          bottomRight: Radius.circular(isMine ? 4 : 16),
+          topLeft: const Radius.circular(18),
+          topRight: const Radius.circular(18),
+          bottomLeft: Radius.circular(isMine ? 18 : 4),
+          bottomRight: Radius.circular(isMine ? 4 : 18),
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8, offset: const Offset(0, 3)),
+          BoxShadow(color: widget.bubbleColor.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -648,8 +706,9 @@ class _Composer extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF211A29),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
@@ -680,21 +739,34 @@ class _Composer extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Material(
-            color: const Color(0xFFFF3D77),
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: sending ? null : onSend,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFF6B9D), Color(0xFFFF3D77)],
+              ),
+              boxShadow: [
+                BoxShadow(color: const Color(0xFFFF3D77).withValues(alpha: 0.45), blurRadius: 10, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: sending ? null : onSend,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                ),
               ),
             ),
           ),
