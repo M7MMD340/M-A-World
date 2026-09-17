@@ -59,3 +59,16 @@ Future<String> joinCoupleByCode(String uid, String inviteCode) async {
   );
   return coupleDoc.id;
 }
+
+/// Detaches the current user from a couple: removes them from the couple's
+/// member list and clears the link on their own profile. Only touches the
+/// caller's own user doc (security rules forbid writing another user's),
+/// so each partner unlinks independently from their own Settings screen.
+Future<void> unlinkCouple(String uid, String coupleId) async {
+  await FirebaseFirestore.instance.collection('couples').doc(coupleId).update({
+    'members': FieldValue.arrayRemove([uid]),
+  });
+  await FirebaseFirestore.instance.collection('users').doc(uid).update({
+    'coupleId': FieldValue.delete(),
+  });
+}

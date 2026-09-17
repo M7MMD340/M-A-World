@@ -25,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   DateTime? _marriageDate;
   bool _saving = false;
   bool _pairing = false;
+  bool _unlinking = false;
   String? _savedMessage;
   String? _pairingError;
 
@@ -140,6 +141,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _unlink() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF211A29),
+        title: const Text('إلغاء الربط؟', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'ستنفصل شخصيتك عن شريكك ولن تظهرا معًا في البيت بعد الآن. يمكنكما الربط من جديد لاحقًا.',
+          style: TextStyle(color: Color(0xFF9C8FAE)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('تراجع'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('إلغاء الربط', style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final coupleId = _coupleId;
+    if (coupleId == null) return;
+    setState(() => _unlinking = true);
+    try {
+      await unlinkCouple(widget.profile.uid, coupleId);
+      if (mounted) setState(() => _coupleId = null);
+    } finally {
+      if (mounted) setState(() => _unlinking = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -162,9 +198,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     myUid: widget.profile.uid,
                     joinCodeController: _joinCode,
                     pairing: _pairing,
+                    unlinking: _unlinking,
                     error: _pairingError,
                     onCreate: _createCouple,
                     onJoin: _joinCouple,
+                    onUnlink: _unlink,
                   )
                 : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance.collection('couples').doc(_coupleId).snapshots(),
@@ -177,9 +215,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         myUid: widget.profile.uid,
                         joinCodeController: _joinCode,
                         pairing: _pairing,
+                        unlinking: _unlinking,
                         error: _pairingError,
                         onCreate: _createCouple,
                         onJoin: _joinCouple,
+                        onUnlink: _unlink,
                       );
                     },
                   ),
@@ -339,18 +379,22 @@ class _PairingSection extends StatelessWidget {
     required this.myUid,
     required this.joinCodeController,
     required this.pairing,
+    required this.unlinking,
     required this.error,
     required this.onCreate,
     required this.onJoin,
+    required this.onUnlink,
   });
 
   final Couple? couple;
   final String myUid;
   final TextEditingController joinCodeController;
   final bool pairing;
+  final bool unlinking;
   final String? error;
   final VoidCallback onCreate;
   final VoidCallback onJoin;
+  final VoidCallback onUnlink;
 
   @override
   Widget build(BuildContext context) {
@@ -378,23 +422,42 @@ class _PairingSection extends StatelessWidget {
           color: const Color(0xFF211A29),
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.favorite, color: Color(0xFFFF3D77)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: partnerId == null
-                  ? const Text('مرتبط ✓', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))
-                  : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                      future: FirebaseFirestore.instance.collection('users').doc(partnerId).get(),
-                      builder: (context, snap) {
-                        final name = snap.data?.data()?['displayName'] as String?;
-                        return Text(
-                          name == null ? 'مرتبط ✓' : 'مرتبط مع $name ✓',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                        );
-                      },
-                    ),
+            Row(
+              children: [
+                const Icon(Icons.favorite, color: Color(0xFFFF3D77)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: partnerId == null
+                      ? const Text('مرتبط ✓', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))
+                      : FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          future: FirebaseFirestore.instance.collection('users').doc(partnerId).get(),
+                          builder: (context, snap) {
+                            final name = snap.data?.data()?['displayName'] as String?;
+                            return Text(
+                              name == null ? 'مرتبط ✓' : 'مرتبط مع $name ✓',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: unlinking ? null : onUnlink,
+                child: unlinking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B6B)),
+                      )
+                    : const Text('إلغاء الربط', style: TextStyle(color: Color(0xFFFF6B6B))),
+              ),
             ),
           ],
         ),
@@ -416,6 +479,20 @@ class _PairingSection extends StatelessWidget {
             Text(
               c.inviteCode,
               style: const TextStyle(color: Color(0xFFFF3D77), fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 3),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: unlinking ? null : onUnlink,
+                child: unlinking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B6B)),
+                      )
+                    : const Text('إلغاء الدعوة', style: TextStyle(color: Color(0xFFFF6B6B))),
+              ),
             ),
           ],
         ),
