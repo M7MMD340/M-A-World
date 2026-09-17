@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'models/couple.dart';
 import 'models/user_profile.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -66,7 +67,23 @@ class AuthGate extends StatelessWidget {
               return const _Loading();
             }
             final profile = UserProfile.fromDoc(profileSnapshot.data!);
-            return HomeScreen(profile: profile);
+            final coupleId = profile.coupleId;
+            if (coupleId == null) {
+              return HomeScreen(profile: profile, couple: null);
+            }
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('couples')
+                  .doc(coupleId)
+                  .snapshots(),
+              builder: (context, coupleSnapshot) {
+                final coupleData = coupleSnapshot.data;
+                final couple = (coupleData != null && coupleData.exists)
+                    ? Couple.fromDoc(coupleData)
+                    : null;
+                return HomeScreen(profile: profile, couple: couple);
+              },
+            );
           },
         );
       },

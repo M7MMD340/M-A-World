@@ -2,13 +2,15 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/home_world.dart';
+import '../models/couple.dart';
 import '../models/user_profile.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.profile});
+  const HomeScreen({super.key, required this.profile, required this.couple});
 
   final UserProfile profile;
+  final Couple? couple;
 
   void _openStub(BuildContext context, String title, String message) {
     showModalBottomSheet(
@@ -96,7 +98,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 onSettings: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => SettingsScreen(profile: profile),
+                    builder: (_) => SettingsScreen(profile: profile, couple: couple),
                   ),
                 ),
               ),
