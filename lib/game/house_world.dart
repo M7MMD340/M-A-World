@@ -11,6 +11,8 @@ import 'home_world.dart';
 import 'house_background.dart';
 import 'interactive_object.dart';
 import 'remote_avatar_component.dart';
+import '../models/message.dart';
+import '../services/chat.dart';
 import '../services/presence.dart';
 
 /// The whole walkable house: one continuous illustration (living room,
@@ -47,7 +49,12 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
   static final Vector2 _startPosition = Vector2(roomWidth * 0.45, houseHeight * 0.36);
 
   late final AvatarComponent avatar;
+  RemoteAvatarComponent? _partnerAvatar;
   StreamSubscription<Map<String, dynamic>?>? _presenceSub;
+  StreamSubscription<List<Message>>? _unreadMessagesSub;
+  StreamSubscription<DateTime?>? _unreadReadSub;
+  DateTime? _latestPartnerMessageAt;
+  DateTime? _myLastReadAt;
   double _presenceWriteTimer = 0;
 
   @override
@@ -57,13 +64,9 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
     final houseImage = await Flame.images.load('rooms/house.jpg');
     add(HouseBackground(worldSize: size, houseImage: houseImage));
 
-    add(InteractiveObject(
-      kind: ObjectKind.mailbox,
-      caption: 'رسائلنا',
-      color: const Color(0xFFFF3D77),
-      position: Vector2(roomWidth * 0.15, houseHeight * 0.83),
-      onTap: onOpenChat,
-    ));
+    // Chat opens by tapping the partner's avatar directly (see
+    // [RemoteAvatarComponent]) instead of a separate mailbox object out in
+    // the garden, so there's no standalone mailbox here anymore.
 
     // These align with the camera and photo frames already painted into
     // the house illustration, so the icon card is hidden and only the tap
@@ -116,29 +119,59 @@ class HouseWorld extends World with HasGameReference<HomeWorld> {
     // Don't spawn the partner's avatar until their first real position
     // arrives — otherwise it sits stacked exactly on top of ours at the
     // shared default start position until they take a step.
-    RemoteAvatarComponent? partnerAvatar;
-
     _presenceSub = watchPresence(coupleId, partnerId).listen((data) {
       final x = (data?['x'] as num?)?.toDouble();
       final y = (data?['y'] as num?)?.toDouble();
       if (x == null || y == null) return;
 
-      if (partnerAvatar == null) {
-        partnerAvatar = RemoteAvatarComponent(
+      final existing = _partnerAvatar;
+      if (existing == null) {
+        final created = RemoteAvatarComponent(
           label: partnerName,
           sprite: partnerSprite,
           position: Vector2(x, y),
-        );
-        add(partnerAvatar!);
+          onTap: onOpenChat,
+        )..hasUnread = _hasUnread;
+        _partnerAvatar = created;
+        add(created);
       } else {
-        partnerAvatar!.targetPosition = Vector2(x, y);
+        existing.targetPosition = Vector2(x, y);
       }
     });
+
+    // Tracks whether the partner has sent a message we haven't opened the
+    // chat to see yet, so we can draw the small red dot on their avatar —
+    // combines "their latest message time" with "when we last read".
+    _unreadMessagesSub = watchMessages(coupleId).listen((messages) {
+      Message? fromPartner;
+      for (final m in messages) {
+        if (m.senderId == partnerId) {
+          fromPartner = m;
+          break;
+        }
+      }
+      _latestPartnerMessageAt = fromPartner?.createdAt;
+      _updateUnreadBadge();
+    });
+    _unreadReadSub = watchLastRead(coupleId, myUid).listen((lastRead) {
+      _myLastReadAt = lastRead;
+      _updateUnreadBadge();
+    });
+  }
+
+  bool get _hasUnread =>
+      _latestPartnerMessageAt != null &&
+      (_myLastReadAt == null || _latestPartnerMessageAt!.isAfter(_myLastReadAt!));
+
+  void _updateUnreadBadge() {
+    _partnerAvatar?.hasUnread = _hasUnread;
   }
 
   @override
   void onRemove() {
     _presenceSub?.cancel();
+    _unreadMessagesSub?.cancel();
+    _unreadReadSub?.cancel();
     super.onRemove();
   }
 

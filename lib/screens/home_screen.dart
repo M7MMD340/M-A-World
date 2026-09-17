@@ -1,19 +1,44 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/home_world.dart';
 import '../models/couple.dart';
+import '../models/message.dart';
 import '../models/user_profile.dart';
+import '../services/chat.dart';
 import 'chat_screen.dart';
 import 'settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.profile, required this.couple});
 
   final UserProfile profile;
   final Couple? couple;
 
-  void _openChat(BuildContext context) {
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Whether ChatScreen is currently pushed on top — read by [_UnreadToast]
+  // so it doesn't pop up a banner for messages already visible on screen.
+  // A ValueNotifier (not setState) so toggling it never rebuilds the
+  // GameWidget below and resets the avatar/camera/presence state.
+  final ValueNotifier<bool> _chatOpen = ValueNotifier(false);
+
+  UserProfile get profile => widget.profile;
+  Couple? get couple => widget.couple;
+
+  @override
+  void dispose() {
+    _chatOpen.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openChat(BuildContext context) async {
     final partnerId = couple?.partnerId(profile.uid);
     if (couple == null || !couple!.isComplete || partnerId == null) {
       _openStub(
@@ -23,7 +48,8 @@ class HomeScreen extends StatelessWidget {
       );
       return;
     }
-    Navigator.of(context).push(
+    _chatOpen.value = true;
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatScreen(
           coupleId: couple!.id,
@@ -32,6 +58,7 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+    _chatOpen.value = false;
   }
 
   void _openStub(BuildContext context, String title, String message) {
@@ -95,6 +122,22 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (couple != null && couple!.isComplete)
+            Positioned(
+              left: 12,
+              right: 12,
+              top: 0,
+              child: SafeArea(
+                bottom: false,
+                child: _UnreadToast(
+                  coupleId: couple!.id,
+                  myUid: profile.uid,
+                  partnerId: couple!.partnerId(profile.uid)!,
+                  chatOpen: _chatOpen,
+                  onTap: () => _openChat(context),
+                ),
+              ),
+            ),
           Positioned(
             left: 16,
             right: 16,
@@ -214,6 +257,155 @@ class _NavItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A banner that slides down from the top when the partner sends a message
+/// while we're not already inside the chat (that case is covered live by
+/// ChatScreen itself). Tapping it opens the chat; it hides itself again
+/// after a few seconds either way.
+class _UnreadToast extends StatefulWidget {
+  const _UnreadToast({
+    required this.coupleId,
+    required this.myUid,
+    required this.partnerId,
+    required this.chatOpen,
+    required this.onTap,
+  });
+
+  final String coupleId;
+  final String myUid;
+  final String partnerId;
+  final ValueNotifier<bool> chatOpen;
+  final VoidCallback onTap;
+
+  @override
+  State<_UnreadToast> createState() => _UnreadToastState();
+}
+
+class _UnreadToastState extends State<_UnreadToast> {
+  StreamSubscription<List<Message>>? _sub;
+  Timer? _hideTimer;
+  String? _senderName;
+  String _preview = '';
+  bool _visible = false;
+  DateTime? _lastSeenAt;
+  bool _isFirstSnapshot = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = watchMessages(widget.coupleId).listen(_onMessages);
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onMessages(List<Message> messages) {
+    if (messages.isEmpty) return;
+    final latest = messages.first;
+
+    // The first snapshot is the chat's existing history, not a new arrival
+    // — just record its timestamp as the baseline without toasting.
+    if (_isFirstSnapshot) {
+      _isFirstSnapshot = false;
+      _lastSeenAt = latest.createdAt;
+      return;
+    }
+
+    final createdAt = latest.createdAt;
+    final isNewFromPartner = latest.senderId == widget.partnerId &&
+        createdAt != null &&
+        (_lastSeenAt == null || createdAt.isAfter(_lastSeenAt!));
+    _lastSeenAt = createdAt ?? _lastSeenAt;
+
+    if (isNewFromPartner && !widget.chatOpen.value) {
+      _showToast(latest.text);
+    }
+  }
+
+  Future<void> _showToast(String text) async {
+    var name = _senderName;
+    if (name == null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.partnerId).get();
+      name = (doc.data()?['displayName'] as String?) ?? 'شريكك';
+      _senderName = name;
+    }
+    if (!mounted) return;
+    setState(() {
+      _preview = text;
+      _visible = true;
+    });
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !_visible,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        offset: _visible ? Offset.zero : const Offset(0, -1.4),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: _visible ? 1 : 0,
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _visible = false);
+              widget.onTap();
+            },
+            child: Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF211A29),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Text('💌', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _senderName ?? 'شريكك',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Color(0xFF9C8FAE), fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
