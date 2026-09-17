@@ -136,6 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _iAmTyping = false;
   Timer? _typingStopTimer;
+  Message? _replyTo;
 
   StreamSubscription<Map<String, dynamic>?>? _presenceSub;
   StreamSubscription<bool>? _typingSub;
@@ -229,10 +230,14 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final text = _controller.text;
     if (text.trim().isEmpty || _sending) return;
-    setState(() => _sending = true);
+    final replyTo = _replyTo;
+    setState(() {
+      _sending = true;
+      _replyTo = null;
+    });
     _controller.clear();
     try {
-      await sendMessage(widget.coupleId, widget.myUid, text);
+      await sendMessage(widget.coupleId, widget.myUid, text, replyTo: replyTo);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -240,7 +245,64 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendSticker(String key) async {
     Navigator.of(context).pop();
-    await sendSticker(widget.coupleId, widget.myUid, key);
+    final replyTo = _replyTo;
+    setState(() => _replyTo = null);
+    await sendSticker(widget.coupleId, widget.myUid, key, replyTo: replyTo);
+  }
+
+  void _setReplyTo(Message message) {
+    setState(() => _replyTo = message);
+  }
+
+  void _cancelReply() {
+    setState(() => _replyTo = null);
+  }
+
+  Future<void> _deleteMessage(Message message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B1522),
+        title: const Text('حذف الرسالة؟', style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('تراجع')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('حذف', style: TextStyle(color: Color(0xFFFF6B6B))),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await deleteMessage(widget.coupleId, message.id);
+    }
+  }
+
+  Future<void> _react(Message message, String emoji) {
+    return toggleReaction(widget.coupleId, message, widget.myUid, emoji);
+  }
+
+  void _showMessageActions(Message message, bool isMine) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B1522),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => _MessageActionsSheet(
+        isMine: isMine,
+        onReact: (emoji) {
+          Navigator.of(sheetContext).pop();
+          _react(message, emoji);
+        },
+        onReply: () {
+          Navigator.of(sheetContext).pop();
+          _setReplyTo(message);
+        },
+        onDelete: () {
+          Navigator.of(sheetContext).pop();
+          _deleteMessage(message);
+        },
+      ),
+    );
   }
 
   void _openCustomizeSheet() {
@@ -411,6 +473,10 @@ class _ChatScreenState extends State<ChatScreen> {
                               isRead: isRead,
                               bubbleColor: isMine ? _myBubbleColor : _partnerBubbleColor,
                               textColor: isMine ? _myTextColor : Colors.white,
+                              myUid: widget.myUid,
+                              partnerName: _partnerName ?? 'شريكك',
+                              onLongPress: () => _showMessageActions(message, isMine),
+                              onReact: (emoji) => _react(message, emoji),
                             ),
                           ],
                         );
@@ -423,6 +489,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 const Padding(
                   padding: EdgeInsets.only(left: 14, bottom: 4),
                   child: Align(alignment: Alignment.centerLeft, child: _TypingBubble()),
+                ),
+              if (_replyTo != null)
+                _ReplyPreviewBar(
+                  message: _replyTo!,
+                  senderLabel: _replyTo!.senderId == widget.myUid ? 'أنت' : (_partnerName ?? 'شريكك'),
+                  onCancel: _cancelReply,
                 ),
               _Composer(
                 controller: _controller,
@@ -447,6 +519,10 @@ class _Bubble extends StatefulWidget {
     required this.isRead,
     required this.bubbleColor,
     required this.textColor,
+    required this.myUid,
+    required this.partnerName,
+    required this.onLongPress,
+    required this.onReact,
   });
 
   final Message message;
@@ -454,6 +530,10 @@ class _Bubble extends StatefulWidget {
   final bool isRead;
   final Color bubbleColor;
   final Color textColor;
+  final String myUid;
+  final String partnerName;
+  final VoidCallback onLongPress;
+  final ValueChanged<String> onReact;
 
   @override
   State<_Bubble> createState() => _BubbleState();
@@ -477,6 +557,7 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final message = widget.message;
     final isMine = widget.isMine;
+    final content = message.isSticker ? _stickerContent(message) : _textContent(context, message, isMine);
 
     return FadeTransition(
       opacity: _fade,
@@ -484,7 +565,32 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
         position: _slide,
         child: Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: message.isSticker ? _stickerContent(message) : _textContent(context, message, isMine),
+          child: GestureDetector(
+            onLongPress: widget.onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  content,
+                  if (message.reactions.isNotEmpty)
+                    Positioned(
+                      bottom: -8,
+                      right: isMine ? null : 8,
+                      left: isMine ? 8 : null,
+                      child: _ReactionBadge(
+                        reactions: message.reactions,
+                        myUid: widget.myUid,
+                        onTap: () {
+                          final mine = message.reactions[widget.myUid];
+                          if (mine != null) widget.onReact(mine);
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -496,6 +602,7 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: widget.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          if (message.isReply) _replyQuote(message),
           Image.asset(stickerAssetPath(message.stickerKey!), height: 96),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -539,6 +646,7 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (message.isReply) _replyQuote(message),
           Text(message.text, style: TextStyle(color: widget.textColor, fontSize: 15)),
           const SizedBox(height: 4),
           Row(
@@ -554,6 +662,35 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
               ),
               _receipt(widget.textColor.withValues(alpha: 0.65)),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _replyQuote(Message message) {
+    final senderLabel = message.replyToSenderId == widget.myUid ? 'أنت' : widget.partnerName;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(10),
+        border: Border(left: BorderSide(color: widget.textColor.withValues(alpha: 0.5), width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            senderLabel,
+            style: TextStyle(color: widget.textColor.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            message.replyToPreview ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: widget.textColor.withValues(alpha: 0.7), fontSize: 12),
           ),
         ],
       ),
@@ -578,6 +715,142 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
     final minute = dt.minute.toString().padLeft(2, '0');
     final period = dt.hour < 12 ? 'ص' : 'م';
     return '$hour:$minute $period';
+  }
+}
+
+const _quickReactions = <String>['❤️', '😂', '😮', '😢', '👍'];
+
+/// The small emoji chip that sits on a bubble's corner once someone has
+/// reacted to it. Only one reaction shown per message here since it's a
+/// two-person chat — tapping your own reaction (see [onTap]) removes it.
+class _ReactionBadge extends StatelessWidget {
+  const _ReactionBadge({required this.reactions, required this.myUid, required this.onTap});
+
+  final Map<String, String> reactions;
+  final String myUid;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final emojis = reactions.values.toSet().join();
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B1522),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.2)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4)],
+        ),
+        child: Text(emojis, style: const TextStyle(fontSize: 13)),
+      ),
+    );
+  }
+}
+
+/// The long-press menu on a message: quick reactions, reply, and (only for
+/// your own messages) delete.
+class _MessageActionsSheet extends StatelessWidget {
+  const _MessageActionsSheet({
+    required this.isMine,
+    required this.onReact,
+    required this.onReply,
+    required this.onDelete,
+  });
+
+  final bool isMine;
+  final ValueChanged<String> onReact;
+  final VoidCallback onReply;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _quickReactions.map((emoji) {
+                return GestureDetector(
+                  onTap: () => onReact(emoji),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: const Color(0xFF211A29), shape: BoxShape.circle),
+                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              onTap: onReply,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.reply_rounded, color: Colors.white),
+              title: const Text('رد', style: TextStyle(color: Colors.white)),
+            ),
+            if (isMine)
+              ListTile(
+                onTap: onDelete,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF6B6B)),
+                title: const Text('حذف', style: TextStyle(color: Color(0xFFFF6B6B))),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown above the composer once a message has been picked to reply to.
+class _ReplyPreviewBar extends StatelessWidget {
+  const _ReplyPreviewBar({required this.message, required this.senderLabel, required this.onCancel});
+
+  final Message message;
+  final String senderLabel;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: const Border(left: BorderSide(color: Color(0xFFFF3D77), width: 3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('رد على $senderLabel', style: const TextStyle(color: Color(0xFFFF3D77), fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(
+                  message.isSticker ? (stickerCatalog[message.stickerKey] ?? 'ملصق') : message.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onCancel,
+            icon: const Icon(Icons.close_rounded, color: Color(0xFF9C8FAE), size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
   }
 }
 
