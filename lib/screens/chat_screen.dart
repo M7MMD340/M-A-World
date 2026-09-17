@@ -445,7 +445,7 @@ class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: widget.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Text(stickerCatalog[message.stickerKey] ?? '💌', style: const TextStyle(fontSize: 64)),
+          Image.asset(stickerAssetPath(message.stickerKey!), height: 96),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -722,27 +722,29 @@ class _StickerPicker extends StatelessWidget {
               'ملصقات',
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'رموز مؤقتة لحين وصول ملصقات مرسومة بشخصياتكم 🎨',
-              style: TextStyle(color: Color(0xFF9C8FAE), fontSize: 12),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 14,
               runSpacing: 14,
               children: stickerCatalog.entries.map((entry) {
                 return GestureDetector(
                   onTap: () => onPick(entry.key),
-                  child: Container(
-                    width: 64,
-                    height: 64,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF211A29),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(entry.value, style: const TextStyle(fontSize: 32)),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF211A29),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Image.asset(stickerAssetPath(entry.key), fit: BoxFit.contain),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(entry.value, style: const TextStyle(color: Color(0xFF9C8FAE), fontSize: 11)),
+                    ],
                   ),
                 );
               }).toList(),

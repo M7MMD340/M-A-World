@@ -64,6 +64,7 @@ flutter:
   assets:
     - assets/images/rooms/
     - assets/images/characters/
+    - assets/images/stickers/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
