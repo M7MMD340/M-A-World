@@ -713,28 +713,36 @@ class _Composer extends StatelessWidget {
                   BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
               ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: onSticker,
-                    icon: const Icon(Icons.emoji_emotions_rounded, color: Color(0xFFFFA94D)),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      minLines: 1,
-                      maxLines: 4,
-                      style: const TextStyle(color: Colors.white),
-                      onSubmitted: (_) => onSend(),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'اكتب رسالة...',
-                        hintStyle: TextStyle(color: Color(0xFF9C8FAE)),
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+              child: Directionality(
+                // Without this, the icon (pinned to the Row's LTR start)
+                // ends up stranded away from the hint text, which
+                // right-aligns itself inside the field because it's
+                // Arabic — leaving an odd empty gap between the two.
+                textDirection: TextDirection.rtl,
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: onSticker,
+                      icon: const Icon(Icons.emoji_emotions_rounded, color: Color(0xFFFFA94D)),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        textDirection: TextDirection.rtl,
+                        style: const TextStyle(color: Colors.white),
+                        onSubmitted: (_) => onSend(),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'اكتب رسالة...',
+                          hintStyle: TextStyle(color: Color(0xFF9C8FAE)),
+                          contentPadding: EdgeInsets.symmetric(vertical: 14),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
