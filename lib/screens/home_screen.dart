@@ -56,6 +56,9 @@ class HomeScreen extends StatelessWidget {
               game: HomeWorld(
                 avatarLabel: profile.displayName,
                 characterAsset: profile.characterAsset,
+                myUid: profile.uid,
+                coupleId: couple?.id,
+                partnerId: couple?.partnerId(profile.uid),
                 onOpenChat: () => _openStub(
                   context,
                   'رسائلنا 💌',

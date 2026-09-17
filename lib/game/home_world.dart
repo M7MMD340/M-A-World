@@ -12,6 +12,9 @@ class HomeWorld extends FlameGame<HouseWorld> {
   HomeWorld({
     required String avatarLabel,
     required String characterAsset,
+    required String myUid,
+    required String? coupleId,
+    required String? partnerId,
     required VoidCallback onOpenChat,
     required VoidCallback onOpenMemories,
     required VoidCallback onOpenCamera,
@@ -30,6 +33,9 @@ class HomeWorld extends FlameGame<HouseWorld> {
           world: HouseWorld(
             avatarLabel: avatarLabel,
             characterAsset: characterAsset,
+            myUid: myUid,
+            coupleId: coupleId,
+            partnerId: partnerId,
             onOpenChat: onOpenChat,
             onOpenMemories: onOpenMemories,
             onOpenCamera: onOpenCamera,
