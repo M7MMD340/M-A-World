@@ -6,6 +6,7 @@ class Message {
     required this.senderId,
     required this.text,
     required this.createdAt,
+    this.stickerKey,
   });
 
   final String id;
@@ -15,6 +16,12 @@ class Message {
   /// Null for the brief moment before the server timestamp resolves.
   final DateTime? createdAt;
 
+  /// Set only for sticker messages — see [StickerCatalog]. When set, [text]
+  /// is empty and the bubble renders the sticker instead of plain text.
+  final String? stickerKey;
+
+  bool get isSticker => stickerKey != null;
+
   factory Message.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     return Message(
@@ -22,6 +29,7 @@ class Message {
       senderId: (data['senderId'] as String?) ?? '',
       text: (data['text'] as String?) ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      stickerKey: data['stickerKey'] as String?,
     );
   }
 }

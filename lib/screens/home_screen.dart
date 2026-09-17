@@ -50,8 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _chatOpen.value = true;
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
+      buildChatRoute(
+        ChatScreen(
           coupleId: couple!.id,
           myUid: profile.uid,
           partnerId: partnerId,

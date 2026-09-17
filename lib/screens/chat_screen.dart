@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/message.dart';
+import '../models/sticker_catalog.dart';
 import '../services/chat.dart';
+import '../services/presence.dart';
 
 const _defaultBubbleColor = Color(0xFFFF3D77);
 const _defaultTextColor = Colors.white;
@@ -38,6 +42,26 @@ const _wallpaperLabels = <String, String>{
   'forest': 'غابة',
 };
 
+/// A gentle slide-up + fade instead of the default side slide — feels like
+/// the chat opens out of the character you just tapped.
+Route<T> buildChatRoute<T>(Widget page) {
+  return PageRouteBuilder<T>(
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: const Duration(milliseconds: 260),
+    pageBuilder: (context, animation, secondaryAnimation) => page,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
@@ -59,16 +83,25 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
 
   String? _partnerName;
+  String _partnerAsset = 'boy';
+  bool _partnerOnline = false;
   Color _partnerBubbleColor = _partnerBubbleColorFallback;
   Color _myBubbleColor = _defaultBubbleColor;
   Color _myTextColor = _defaultTextColor;
   String _wallpaperKey = _defaultWallpaper;
+
+  StreamSubscription<Map<String, dynamic>?>? _presenceSub;
 
   @override
   void initState() {
     super.initState();
     markRead(widget.coupleId, widget.myUid);
     _loadPrefs();
+    _presenceSub = watchPresence(widget.coupleId, widget.partnerId).listen((data) {
+      final updatedAt = (data?['updatedAt'] as Timestamp?)?.toDate();
+      final online = updatedAt != null && DateTime.now().difference(updatedAt) < const Duration(seconds: 8);
+      if (mounted) setState(() => _partnerOnline = online);
+    });
   }
 
   @override
@@ -76,6 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Anything that arrived while we were actively looking at the chat
     // counts as read too, once we leave.
     markRead(widget.coupleId, widget.myUid);
+    _presenceSub?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -93,6 +127,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _myTextColor = _colorFromInt(my?['chatTextColor'] as int?) ?? _defaultTextColor;
       _wallpaperKey = (my?['chatWallpaper'] as String?) ?? _defaultWallpaper;
       _partnerName = partner?['displayName'] as String?;
+      _partnerAsset = (partner?['gender'] as String?) == 'girl' ? 'girl' : 'boy';
       _partnerBubbleColor = _colorFromInt(partner?['chatBubbleColor'] as int?) ?? _partnerBubbleColorFallback;
     });
   }
@@ -124,6 +159,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _sendSticker(String key) async {
+    Navigator.of(context).pop();
+    await sendSticker(widget.coupleId, widget.myUid, key);
+  }
+
   void _openCustomizeSheet() {
     showModalBottomSheet(
       context: context,
@@ -140,6 +180,15 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _openStickerPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B1522),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) => _StickerPicker(onPick: _sendSticker),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wallpaperColors = _wallpapers[_wallpaperKey] ?? _wallpapers[_defaultWallpaper]!;
@@ -148,8 +197,60 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF15111A),
         foregroundColor: Colors.white,
-        centerTitle: true,
-        title: Text(_partnerName == null ? 'رسائلنا 💌' : '$_partnerName 💌'),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipOval(
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    color: const Color(0xFF211A29),
+                    child: Image.asset(
+                      'assets/images/characters/$_partnerAsset.png',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
+                  ),
+                ),
+                if (_partnerOnline)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4ADE80),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF15111A), width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _partnerName ?? 'رسائلنا',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _partnerOnline ? 'متصل الآن' : ' ',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF4ADE80), fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _openCustomizeSheet,
@@ -201,6 +302,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         // one — the divider must come first in the Column to
                         // land above that day's oldest message, not below it.
                         return Column(
+                          key: ValueKey(message.id),
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (showDayDivider) _DayDivider(date: message.createdAt),
@@ -217,7 +319,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   },
                 ),
               ),
-              _Composer(controller: _controller, sending: _sending, onSend: _send),
+              _Composer(
+                controller: _controller,
+                sending: _sending,
+                onSend: _send,
+                onSticker: _openStickerPicker,
+              ),
             ],
           ),
         ),
@@ -231,7 +338,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class _Bubble extends StatelessWidget {
+class _Bubble extends StatefulWidget {
   const _Bubble({
     required this.message,
     required this.isMine,
@@ -245,40 +352,87 @@ class _Bubble extends StatelessWidget {
   final Color textColor;
 
   @override
+  State<_Bubble> createState() => _BubbleState();
+}
+
+class _BubbleState extends State<_Bubble> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  )..forward();
+  late final _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+  late final _slide = Tween<Offset>(begin: const Offset(0, 0.18), end: Offset.zero).animate(_fade);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMine ? 16 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 16),
+    final message = widget.message;
+    final isMine = widget.isMine;
+
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: Align(
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: message.isSticker ? _stickerContent(message) : _textContent(context, message, isMine),
+        ),
+      ),
+    );
+  }
+
+  Widget _stickerContent(Message message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: widget.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(stickerCatalog[message.stickerKey] ?? '💌', style: const TextStyle(fontSize: 64)),
+          Text(
+            _formatTime(message.createdAt),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 10),
           ),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8, offset: const Offset(0, 3)),
-          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _textContent(BuildContext context, Message message, bool isMine) {
+    return Container(
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: widget.bubbleColor,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isMine ? 16 : 4),
+          bottomRight: Radius.circular(isMine ? 4 : 16),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(message.text, style: TextStyle(color: textColor, fontSize: 15)),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(message.createdAt),
-              textAlign: isMine ? TextAlign.left : TextAlign.right,
-              style: TextStyle(
-                color: textColor.withValues(alpha: 0.65),
-                fontSize: 10,
-              ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(message.text, style: TextStyle(color: widget.textColor, fontSize: 15)),
+          const SizedBox(height: 4),
+          Text(
+            _formatTime(message.createdAt),
+            textAlign: isMine ? TextAlign.left : TextAlign.right,
+            style: TextStyle(
+              color: widget.textColor.withValues(alpha: 0.65),
+              fontSize: 10,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -330,36 +484,58 @@ class _DayDivider extends StatelessWidget {
 }
 
 class _Composer extends StatelessWidget {
-  const _Composer({required this.controller, required this.sending, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+    required this.onSticker,
+  });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onSticker;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.18),
-        border: const Border(top: BorderSide(color: Color(0xFF211A29), width: 1)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: TextField(
-              controller: controller,
-              minLines: 1,
-              maxLines: 4,
-              style: const TextStyle(color: Colors.white),
-              onSubmitted: (_) => onSend(),
-              decoration: const InputDecoration(
-                filled: true,
-                fillColor: Color(0xFF211A29),
-                hintText: 'اكتب رسالة...',
-                hintStyle: TextStyle(color: Color(0xFF9C8FAE)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(20)), borderSide: BorderSide.none),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF211A29),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: onSticker,
+                    icon: const Icon(Icons.emoji_emotions_rounded, color: Color(0xFFFFA94D)),
+                    tooltip: 'ملصقات',
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      minLines: 1,
+                      maxLines: 4,
+                      style: const TextStyle(color: Colors.white),
+                      onSubmitted: (_) => onSend(),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'اكتب رسالة...',
+                        hintStyle: TextStyle(color: Color(0xFF9C8FAE)),
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -383,6 +559,56 @@ class _Composer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StickerPicker extends StatelessWidget {
+  const _StickerPicker({required this.onPick});
+
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ملصقات',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'رموز مؤقتة لحين وصول ملصقات مرسومة بشخصياتكم 🎨',
+              style: TextStyle(color: Color(0xFF9C8FAE), fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: stickerCatalog.entries.map((entry) {
+                return GestureDetector(
+                  onTap: () => onPick(entry.key),
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF211A29),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(entry.value, style: const TextStyle(fontSize: 32)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }

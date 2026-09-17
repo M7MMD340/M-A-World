@@ -29,6 +29,19 @@ Future<void> sendMessage(String coupleId, String senderId, String text) {
   });
 }
 
+Future<void> sendSticker(String coupleId, String senderId, String stickerKey) {
+  return FirebaseFirestore.instance
+      .collection('couples')
+      .doc(coupleId)
+      .collection('messages')
+      .add({
+    'senderId': senderId,
+    'text': '',
+    'stickerKey': stickerKey,
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
+
 /// Stamps "now" as the moment [uid] last saw the chat — read by both the
 /// unread badge on the partner's avatar and the incoming-message toast.
 Future<void> markRead(String coupleId, String uid) {
