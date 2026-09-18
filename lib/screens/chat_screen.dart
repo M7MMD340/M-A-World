@@ -1013,6 +1013,13 @@ class _Composer extends StatelessWidget {
                         style: const TextStyle(color: Colors.white),
                         onSubmitted: (_) => onSend(),
                         decoration: const InputDecoration(
+                          // The app's global theme defaults every text
+                          // field to filled:true with a solid dark fill —
+                          // without overriding it here, that opaque fill
+                          // painted right over this pill's translucent
+                          // background, which is what actually looked
+                          // like a solid black box.
+                          filled: false,
                           border: InputBorder.none,
                           hintText: 'اكتب رسالة...',
                           hintStyle: TextStyle(color: Color(0xFF9C8FAE)),
