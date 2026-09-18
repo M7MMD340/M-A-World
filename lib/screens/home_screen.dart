@@ -9,6 +9,7 @@ import '../models/couple.dart';
 import '../models/message.dart';
 import '../models/user_profile.dart';
 import '../services/chat.dart';
+import 'camera_screen.dart';
 import 'chat_screen.dart';
 import 'settings_screen.dart';
 
@@ -59,6 +60,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     _chatOpen.value = false;
+  }
+
+  void _openCamera(BuildContext context) {
+    if (couple == null || !couple!.isComplete) {
+      _openStub(
+        context,
+        'الكاميرا 📷',
+        'اربط حسابك بشريكك من الإعدادات أول عشان تقدروا تشاركوا صوركم.',
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CameraScreen(coupleId: couple!.id, myUid: profile.uid),
+      ),
+    );
   }
 
   void _openStub(BuildContext context, String title, String message) {
@@ -114,11 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'ذكرياتنا 🖼️',
                   'الخط الزمني للذكريات المشتركة قادم هنا.',
                 ),
-                onOpenCamera: () => _openStub(
-                  context,
-                  'الكاميرا 📷',
-                  'التقاط ومشاركة اللحظات قادم هنا.',
-                ),
+                onOpenCamera: () => _openCamera(context),
               ),
             ),
           ),
