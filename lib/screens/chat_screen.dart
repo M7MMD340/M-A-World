@@ -404,15 +404,21 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: wallpaperColors,
-            ),
+      body: Container(
+        // The gradient wraps the SafeArea (not the other way around) so it
+        // paints all the way to the screen edge — including the bottom
+        // inset strip behind the home-indicator/gesture area, where the
+        // composer sits. Wrapped the other way, that strip fell outside
+        // the gradient and showed the Scaffold's own flat (near-black)
+        // background instead, making the composer look opaque there.
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: wallpaperColors,
           ),
+        ),
+        child: SafeArea(
           child: Stack(
             children: [
               Positioned.fill(child: CustomPaint(painter: const _HeartPatternPainter())),
